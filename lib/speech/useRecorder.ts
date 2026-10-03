@@ -46,8 +46,14 @@ export function useRecorder({ onStop, onLost, onChunk }: Options) {
   const start = useCallback(async () => {
     if (live.current || starting.current) return;
     starting.current = true;
+    const ticket = session.current;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true } });
+      if (session.current !== ticket) {
+        // discard() ran while getUserMedia was pending: don't start a session nobody wants.
+        stream.getTracks().forEach((t) => t.stop());
+        return;
+      }
       const recorder = new MediaRecorder(stream);
       const ctx = new AudioContext();
       const analyser = ctx.createAnalyser();

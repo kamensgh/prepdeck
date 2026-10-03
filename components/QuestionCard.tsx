@@ -63,6 +63,7 @@ export function QuestionCard({ question, instant, tipsOpen, onToggleTips, onAnal
           <button
             type="button"
             onClick={onAnalyse}
+            data-analyse-button
             className="rounded-full border-2 border-ink bg-[var(--industry)] px-4 py-2 text-sm font-bold text-white"
           >
             Analyse my answer

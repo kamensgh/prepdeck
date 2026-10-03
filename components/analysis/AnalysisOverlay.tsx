@@ -33,6 +33,9 @@ export function AnalysisOverlay({ question, deckDone, onClose, onNewQuestion }: 
   const session = useRef<engine.AnalysisSession | null>(null);
   const stateRef = useRef(state);
   stateRef.current = state;
+  // Set as soon as a close is committed to (confirm accepted, or none needed), so in-flight
+  // effects (count-in tick, recording start, setup's mic prompt) stop acting on stale state.
+  const closing = useRef(false);
 
   const dropSession = () => {
     session.current?.reset();
@@ -65,28 +68,64 @@ export function AnalysisOverlay({ question, deckDone, onClose, onNewQuestion }: 
   // Guarded because StrictMode runs effects twice in development.
   useEffect(() => {
     const returnFocus = document.activeElement as HTMLElement | null;
-    if (!dialog.current?.open) dialog.current?.showModal();
+    const d = dialog.current;
+    if (!d?.open) d?.showModal();
     if (!opened.current) {
       opened.current = true;
       history.pushState({ prepdeckAnalyse: true }, '');
     }
-    const onPop = () => {
+    // Finishes a close already committed to: stop any live recording, drop the session, notify.
+    const finalizeClose = () => {
+      closing.current = true;
       if (stateRef.current.step === 'analysing') engine.cancel();
       else dropSession();
+      recorder.discard();
       onClose();
     };
+    const onPop = () => {
+      if (closing.current) {
+        onClose();
+        return;
+      }
+      const s = stateRef.current.step;
+      if ((s === 'count-in' || s === 'recording') && !window.confirm('Discard this recording?')) {
+        history.pushState({ prepdeckAnalyse: true }, ''); // declined: restore the entry Back just consumed
+        return;
+      }
+      finalizeClose();
+    };
+    // Covers the dialog closing some other way (e.g. the browser's own handling of a repeated Esc).
+    const onDialogClose = () => {
+      if (closing.current) return;
+      finalizeClose();
+    };
     window.addEventListener('popstate', onPop);
+    d?.addEventListener('close', onDialogClose);
     void engine.modelsCached().then(setCached);
     void engine.hasWebGPU().then(setWebgpu);
     return () => {
       window.removeEventListener('popstate', onPop);
-      returnFocus?.focus(); // the dialog unmounts without close(), so restore focus ourselves
+      d?.removeEventListener('close', onDialogClose);
+      // The dialog unmounts without close(), so restore focus ourselves. The original target
+      // (e.g. the card's Analyse button) may itself have unmounted (new question / deck reset).
+      if (returnFocus?.isConnected) {
+        returnFocus.focus();
+      } else {
+        const fallback =
+          document.querySelector<HTMLElement>('[data-analyse-button]') ?? document.querySelector<HTMLElement>('[data-deck-primary]');
+        fallback?.focus();
+      }
     };
+    // recorder.discard is stable (useCallback with no changing deps); omitted so this effect
+    // doesn't re-run (and re-focus) on every render while elapsed/levels update during recording.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [onClose]);
 
   const requestClose = useCallback(() => {
+    if (closing.current) return; // a close is already underway (e.g. a second Esc/✕ press)
     const s = stateRef.current.step;
     if ((s === 'count-in' || s === 'recording') && !window.confirm('Discard this recording?')) return;
+    closing.current = true;
     recorder.discard();
     dropSession();
     history.back(); // fires popstate → onClose
@@ -101,7 +140,9 @@ export function AnalysisOverlay({ question, deckDone, onClose, onNewQuestion }: 
       if (!(e instanceof engine.Cancelled)) dispatch({ type: 'setup-failed', error: 'load-failed' });
       return;
     }
+    if (closing.current) return; // overlay closed while the model was downloading
     const mic = await requestMic();
+    if (closing.current) return; // overlay closed while the mic prompt was up
     if (mic !== 'ok') return dispatch({ type: 'setup-failed', error: mic });
     dispatch({ type: 'ready' });
   }, []);
@@ -113,19 +154,21 @@ export function AnalysisOverlay({ question, deckDone, onClose, onNewQuestion }: 
 
   // Count-in ticks, then recording starts.
   useEffect(() => {
-    if (state.step !== 'count-in') return;
+    if (state.step !== 'count-in' || closing.current) return;
     setAnnounce(String(state.remaining));
-    const t = setTimeout(() => dispatch({ type: 'tick' }), 1000);
+    const t = setTimeout(() => {
+      if (!closing.current) dispatch({ type: 'tick' });
+    }, 1000);
     return () => clearTimeout(t);
   }, [state]);
 
   useEffect(() => {
-    if (state.step === 'recording' && !recorder.active) {
+    if (state.step === 'recording' && !recorder.active && !closing.current) {
       setAnnounce('Recording started');
       session.current = engine.startSession();
       recorder.start().catch(() => {
         dropSession();
-        dispatch({ type: 'mic-failed' });
+        if (!closing.current) dispatch({ type: 'mic-failed' });
       });
     }
     if (state.step === 'analysing') setAnnounce(stageLabel[state.stage]);

@@ -223,6 +223,7 @@ export function Deck({ deck, industryName }: { deck: Question[]; industryName: s
           type="button"
           onClick={primary.action}
           disabled={deck.length === 0 || phase === 'shuffling'}
+          data-deck-primary
           className="card-surface rounded-full! bg-[var(--industry)] px-7 py-3 font-display text-lg font-extrabold text-white transition-[transform,box-shadow] active:translate-x-1 active:translate-y-1 active:shadow-none disabled:opacity-50"
         >
           {phase === 'shuffling' ? 'Shuffling…' : primary.label}
