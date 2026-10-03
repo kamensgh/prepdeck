@@ -64,18 +64,19 @@ export function useRecorder({ onStop, onLost, onChunk }: Options) {
       const chunker = new Chunker((audio, offsetSec) => {
         if (mine === session.current) handlers.current.onChunk?.(audio, offsetSec);
       });
+      const l: Live = { stream, recorder, ctx, raf: 0, clock: 0, lost: false, chunker };
+      live.current = l;
+
       await ctx.audioWorklet.addModule(tapModuleUrl());
       const tap = new AudioWorkletNode(ctx, 'pcm-tap');
       tap.port.onmessage = (e: MessageEvent<Float32Array>) => {
+        // Each 4096-sample block from the worklet is resampled independently (tiny boundary effects, acceptable for speech).
         if (mine === session.current) chunker.push(resampleTo16k(e.data, ctx.sampleRate));
       };
       const mute = ctx.createGain();
       mute.gain.value = 0; // the tap must be pulled by the graph, but nothing should be audible
       source.connect(tap);
       tap.connect(mute).connect(ctx.destination);
-
-      const l: Live = { stream, recorder, ctx, raf: 0, clock: 0, lost: false, chunker };
-      live.current = l;
 
       // Waveform and flat-mic check: animation frames (paused in hidden tabs, which is fine).
       const frame = () => {
