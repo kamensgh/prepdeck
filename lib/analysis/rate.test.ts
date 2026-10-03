@@ -58,7 +58,6 @@ const cm = (covered: boolean[], over: Partial<ContentMetrics> = {}): ContentMetr
   mode: 'rubric',
   points: covered.map((c, i) => ({ text: ['DNS', 'TCP/TLS', 'HTTP', 'HTML parse', 'CSSOM', 'layout', 'paint'][i], covered: c })),
   coverage: covered.filter(Boolean).length / covered.length,
-  avoidHit: null,
   ...over,
 });
 
@@ -68,11 +67,10 @@ test('content boundaries: 70% strong, 40% good', () => {
   assert.equal(rateContent(cm([true, false, false, false, false, false, false])).rating, 'needs-work');
 });
 
-test('content lists missed points and downgrades on an avoid match', () => {
-  const m = cm([true, true, true, true, true, false, false], { avoidHit: 'Saying JS is multi-threaded' });
-  const d = rateContent(m);
-  assert.equal(d.rating, 'good');
-  assert.deepEqual(d.lines, ["covered 5 of 7 points; missed: layout, paint", "⚠ sounded like: 'Saying JS is multi-threaded'"]);
+test('content lists missed points', () => {
+  const d = rateContent(cm([true, true, true, true, true, false, false]));
+  assert.equal(d.rating, 'strong'); // 5 of 7 = 71%
+  assert.deepEqual(d.lines, ['covered 5 of 7 points; missed: layout, paint']);
 });
 
 test('structure mode names the missing STAR parts', () => {
@@ -80,7 +78,6 @@ test('structure mode names the missing STAR parts', () => {
     mode: 'structure',
     points: [{ text: 'situation or task', covered: true }, { text: 'action', covered: true }, { text: 'result', covered: false }],
     coverage: 2 / 3,
-    avoidHit: null,
   });
   assert.equal(d.rating, 'good');
   assert.deepEqual(d.lines, ['covered 2 of 3 parts of a STAR answer', 'no clear result']);

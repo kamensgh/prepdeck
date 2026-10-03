@@ -40,14 +40,19 @@ test('a point is covered when a transcript window is similar enough', async () =
   assert.deepEqual(m.points.map((p) => p.covered), [true, false, false]);
 });
 
-test('an avoid match is reported', async () => {
-  const embed: Embed = async (texts) => texts.map((t) => (t.includes('threaded') ? [1, 0] : [0, 1]));
+test('tips.avoid is not embedded or graded', async () => {
+  const seen: string[] = [];
+  const embed: Embed = async (texts) => {
+    seen.push(...texts);
+    return texts.map(() => [1, 0]);
+  };
   const m = await content(
     wordsFromText('javascript is multi threaded so it runs in parallel'),
     { hit: 'Call stack, task queue, microtask queue.', avoid: 'Saying JS is multi-threaded.' },
     embed,
   );
-  assert.equal(m.avoidHit, 'Saying JS is multi-threaded');
+  assert.ok(!seen.includes('Saying JS is multi-threaded.'));
+  assert.equal('avoidHit' in m, false);
 });
 
 test('fewer than 3 rubric points falls back to a STAR structure check', async () => {

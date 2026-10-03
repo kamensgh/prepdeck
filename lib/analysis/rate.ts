@@ -2,8 +2,6 @@ import { formatClock } from './text.ts';
 import { CONTENT, FLUENCY, PACING } from './thresholds.ts';
 import type { ContentMetrics, Dimension, FluencyMetrics, PacingMetrics, Rating } from './types.ts';
 
-const downgrade = (r: Rating): Rating => (r === 'strong' ? 'good' : 'needs-work');
-
 export function rateFluency(m: FluencyMetrics): Dimension {
   const rating: Rating = m.perMinute < FLUENCY.strongBelow ? 'strong' : m.perMinute <= FLUENCY.goodUpTo ? 'good' : 'needs-work';
   const lines: string[] = [];
@@ -42,7 +40,7 @@ export function ratePacing(m: PacingMetrics): Dimension {
 }
 
 export function rateContent(m: ContentMetrics): Dimension {
-  let rating: Rating = m.coverage >= CONTENT.strongFrom ? 'strong' : m.coverage >= CONTENT.goodFrom ? 'good' : 'needs-work';
+  const rating: Rating = m.coverage >= CONTENT.strongFrom ? 'strong' : m.coverage >= CONTENT.goodFrom ? 'good' : 'needs-work';
   const covered = m.points.filter((p) => p.covered).length;
   const missed = m.points.filter((p) => !p.covered).map((p) => p.text);
 
@@ -50,9 +48,5 @@ export function rateContent(m: ContentMetrics): Dimension {
     return { rating, lines: [`covered ${covered} of 3 parts of a STAR answer`, ...missed.map((p) => `no clear ${p}`)] };
   }
   const lines = [`covered ${covered} of ${m.points.length} points${missed.length ? `; missed: ${missed.join(', ')}` : ''}`];
-  if (m.avoidHit) {
-    rating = downgrade(rating);
-    lines.push(`⚠ sounded like: '${m.avoidHit}'`);
-  }
   return { rating, lines };
 }

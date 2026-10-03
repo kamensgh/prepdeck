@@ -21,7 +21,6 @@ export const CONTENT = {
   strongFrom: 0.7,
   goodFrom: 0.4,
   coverSimilarity: 0.5,
-  avoidSimilarity: 0.6,
   windowWords: 12,
   windowStep: 6,
   minRubricPoints: 3,

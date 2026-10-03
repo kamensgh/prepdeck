@@ -36,6 +36,19 @@ Only questions with **Review = Approved** reach the app.
 Every question is tagged at the most general layer where it applies:
 Universal → Industry → Role family → Specialisation → Stack, with level as a filter. See `lib/deck.ts` for the matching rule.
 
+## Spoken answer analysis (v2)
+
+On a dealt card, **Analyse my answer** opens a full-screen overlay: record up to 3 minutes and get Content, Fluency and Pacing ratings with a breakdown. Everything runs in the browser (Whisper `base.en`, Silero VAD and MiniLM via Transformers.js, downloaded once and cached), and the answer is transcribed in ~25 s chunks while you speak so results arrive a few seconds after Stop. No audio, transcript or score leaves the device, and nothing is saved.
+
+- Content: share of the question's "strong answer covers" points the answer covered
+- Fluency: filler words plus hesitations (voiced pauses Whisper folds into words) per minute
+- Pacing: long silences, speaking rate and length
+- Grading logic: `lib/analysis/` (pure functions, thresholds in `thresholds.ts`)
+- Models, recorder and worker: `lib/speech/`, `workers/analysis.worker.ts`
+- Overlay UI: `components/analysis/`
+- `npm run test:golden` runs 30 golden answers through the real embedding model
+- `/lab/speech` (development only) compares model profiles and measures streaming speed
+
 ### Set up Sanity
 
 1. Create a project at sanity.io and copy its project ID.

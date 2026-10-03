@@ -61,18 +61,18 @@ const STAR = [
 function structure(words: Word[]): ContentMetrics {
   const said = ` ${tokens(words.map((w) => w.text).join(' ')).join(' ')} `;
   const points: RubricPoint[] = STAR.map((p) => ({ text: p.text, covered: p.cues.some((c) => said.includes(` ${c} `)) }));
-  return { mode: 'structure', points, coverage: points.filter((p) => p.covered).length / points.length, avoidHit: null };
+  return { mode: 'structure', points, coverage: points.filter((p) => p.covered).length / points.length };
 }
 
-export async function content(words: Word[], tips: { hit: string; avoid: string }, embed: Embed): Promise<ContentMetrics> {
+// tips.avoid is not graded: sentence embeddings can't see negation, so answers ON the avoid topic matched it (Stage 1 golden set).
+export async function content<T extends { hit: string }>(words: Word[], tips: T, embed: Embed): Promise<ContentMetrics> {
   const pointTexts = splitRubric(tips.hit);
   if (pointTexts.length < CONTENT.minRubricPoints) return structure(words);
 
   const windowTexts = windows(words);
-  const vectors = await embed([...pointTexts, tips.avoid, ...windowTexts]);
+  const vectors = await embed([...pointTexts, ...windowTexts]);
   const pointVecs = vectors.slice(0, pointTexts.length);
-  const avoidVec = vectors[pointTexts.length];
-  const windowVecs = vectors.slice(pointTexts.length + 1);
+  const windowVecs = vectors.slice(pointTexts.length);
   const best = (v: number[]) => Math.max(0, ...windowVecs.map((w) => cosine(v, w)));
 
   const said = new Set(words.flatMap((w) => tokens(w.text)));
@@ -84,6 +84,5 @@ export async function content(words: Word[], tips: { hit: string; avoid: string 
     mode: 'rubric',
     points,
     coverage: points.filter((p) => p.covered).length / points.length,
-    avoidHit: best(avoidVec) >= CONTENT.avoidSimilarity ? tips.avoid.replace(/\.+$/, '') : null,
   };
 }

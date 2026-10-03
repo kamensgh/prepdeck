@@ -26,7 +26,6 @@ export type ContentMetrics = {
   mode: 'rubric' | 'structure';
   points: RubricPoint[];
   coverage: number; // 0..1
-  avoidHit: string | null;
 };
 export type Dimension = { rating: Rating; lines: string[] };
 export type GradedResult = {
