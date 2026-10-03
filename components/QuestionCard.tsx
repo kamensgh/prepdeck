@@ -18,9 +18,10 @@ type Props = {
   instant: boolean;
   tipsOpen: boolean;
   onToggleTips: () => void;
+  onAnalyse?: () => void;
 };
 
-export function QuestionCard({ question, instant, tipsOpen, onToggleTips }: Props) {
+export function QuestionCard({ question, instant, tipsOpen, onToggleTips, onAnalyse }: Props) {
   const colour = typeColours[question.type];
   const level = question.level === 'all' ? 'Any level' : `${seniorityLabels[question.level]}+`;
 
@@ -48,15 +49,26 @@ export function QuestionCard({ question, instant, tipsOpen, onToggleTips }: Prop
         {question.text}
       </h2>
 
-      <button
-        type="button"
-        onClick={onToggleTips}
-        aria-expanded={tipsOpen}
-        className="mt-4 self-start rounded-full border-2 border-ink px-4 py-2 text-sm font-bold transition-colors hover:bg-ink/5"
-        style={tipsOpen ? { background: 'var(--industry)', color: 'white' } : undefined}
-      >
-        {tipsOpen ? 'Hide tips' : 'What makes a great answer?'}
-      </button>
+      <div className="mt-4 flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={onToggleTips}
+          aria-expanded={tipsOpen}
+          className="rounded-full border-2 border-ink px-4 py-2 text-sm font-bold transition-colors hover:bg-ink/5"
+          style={tipsOpen ? { background: 'var(--industry)', color: 'white' } : undefined}
+        >
+          {tipsOpen ? 'Hide tips' : 'What makes a great answer?'}
+        </button>
+        {onAnalyse && (
+          <button
+            type="button"
+            onClick={onAnalyse}
+            className="rounded-full border-2 border-ink bg-[var(--industry)] px-4 py-2 text-sm font-bold text-white"
+          >
+            Analyse my answer
+          </button>
+        )}
+      </div>
     </motion.article>
   );
 }
