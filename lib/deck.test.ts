@@ -45,6 +45,27 @@ test('M&A deck includes industry and universal questions', () => {
   assert.ok(!ids.includes('FE-01'));
 });
 
+test('backend deck gets backend, shared engineering and selected stack questions only', () => {
+  const ids = buildDeck(seedContent, {
+    ...frontendReact,
+    specialisationId: 'backend',
+    stacks: ['nodejs'],
+  }).map((q) => q.id);
+  assert.ok(ids.includes('BE-01') && ids.includes('SE-01') && ids.includes('ND-01'));
+  assert.ok(!ids.includes('PY-01'), 'Python not selected');
+  assert.ok(!ids.includes('FE-01') && !ids.includes('FS-01'), 'other specialisations');
+});
+
+test('fullstack deck shares stack questions with frontend', () => {
+  const ids = buildDeck(seedContent, {
+    ...frontendReact,
+    specialisationId: 'fullstack',
+    stacks: ['react', 'nodejs'],
+  }).map((q) => q.id);
+  assert.ok(ids.includes('FS-01') && ids.includes('RE-01') && ids.includes('ND-01'));
+  assert.ok(!ids.includes('FE-01') && !ids.includes('BE-01'));
+});
+
 test('shuffle keeps every item exactly once', () => {
   const input = Array.from({ length: 50 }, (_, i) => i);
   const out = shuffle(input);

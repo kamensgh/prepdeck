@@ -15,7 +15,8 @@ test('parses the question bank tables with scope and status', () => {
   const re01 = docs.find((d) => d.code === 'RE-01') as any;
   assert.equal(re01.status, 'approved');
   assert.equal(re01.scope.stack, 'react');
-  assert.equal(re01.scope.specialisation._ref, 'specialisation-frontend');
+  assert.equal(re01.scope.roleFamily._ref, 'roleFamily-software-engineering');
+  assert.equal(re01.scope.specialisation, undefined, 'stack questions are shared across roles');
   const u07 = docs.find((d) => d.code === 'U-07') as any;
   assert.equal(u07.type, 'culture-fit');
   assert.equal(u07.status, 'needs-edit');

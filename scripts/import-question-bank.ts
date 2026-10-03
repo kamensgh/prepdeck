@@ -12,15 +12,24 @@ import { seedContent } from '../lib/content/seed.ts';
 
 type Scope = { industry?: string; roleFamily?: string; specialisation?: string; stack?: string };
 
-const FRONTEND: Scope = { industry: 'technology', roleFamily: 'software-engineering', specialisation: 'frontend' };
+const ENGINEERING: Scope = { industry: 'technology', roleFamily: 'software-engineering' };
+const FRONTEND: Scope = { ...ENGINEERING, specialisation: 'frontend' };
+const BACKEND: Scope = { ...ENGINEERING, specialisation: 'backend' };
+const FULLSTACK: Scope = { ...ENGINEERING, specialisation: 'fullstack' };
 const MNA: Scope = { industry: 'm-and-a', roleFamily: 'm-and-a' };
 
 const scopeByPrefix: Record<string, { scope: Scope; version?: string }> = {
   U: { scope: {} },
+  SE: { scope: ENGINEERING },
   FE: { scope: FRONTEND },
   SD: { scope: FRONTEND },
-  RE: { scope: { ...FRONTEND, stack: 'react' }, version: 'react@19' },
-  NX: { scope: { ...FRONTEND, stack: 'nextjs' } },
+  BE: { scope: BACKEND },
+  FS: { scope: FULLSTACK },
+  // Stack questions apply to every engineering role that offers the stack.
+  RE: { scope: { ...ENGINEERING, stack: 'react' }, version: 'react@19' },
+  NX: { scope: { ...ENGINEERING, stack: 'nextjs' } },
+  ND: { scope: { ...ENGINEERING, stack: 'nodejs' } },
+  PY: { scope: { ...ENGINEERING, stack: 'python' } },
   MA: { scope: MNA },
   AC: { scope: MNA },
   VA: { scope: MNA },

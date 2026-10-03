@@ -2,7 +2,7 @@
 
 Interview practice as a card game: pick an industry and role, shuffle the deck, and answer the question you're dealt, with notes on what a strong answer needs.
 
-v1 covers **Technology → Software Engineering → Frontend** (React, Next.js) and **Mergers & Acquisitions**.
+v1 covers **Technology → Software Engineering** (Frontend: React, Next.js · Backend: Node.js, Python · Fullstack: React, Next.js, Node.js) and **Mergers & Acquisitions**.
 
 ## Run it
 

@@ -21,7 +21,8 @@ export default async function PracticePage({
     (q) =>
       (!q.scope.industryId || q.scope.industryId === industry.id) &&
       (!q.scope.roleFamilyId || q.scope.roleFamilyId === family.id) &&
-      (!q.scope.specialisationId || q.scope.specialisationId === specialisation.id),
+      (!q.scope.specialisationId || q.scope.specialisationId === specialisation.id) &&
+      (!q.scope.stack || specialisation.stacks.some((s) => s.id === q.scope.stack)),
   );
 
   return (

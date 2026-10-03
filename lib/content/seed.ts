@@ -33,6 +33,25 @@ export const seedContent: Content = {
         { id: 'nextjs', name: 'Next.js' },
       ],
     },
+    {
+      id: 'backend',
+      roleFamilyId: 'software-engineering',
+      name: 'Backend Engineer',
+      stacks: [
+        { id: 'nodejs', name: 'Node.js' },
+        { id: 'python', name: 'Python' },
+      ],
+    },
+    {
+      id: 'fullstack',
+      roleFamilyId: 'software-engineering',
+      name: 'Fullstack Engineer',
+      stacks: [
+        { id: 'react', name: 'React' },
+        { id: 'nextjs', name: 'Next.js' },
+        { id: 'nodejs', name: 'Node.js' },
+      ],
+    },
     { id: 'ma-analyst', roleFamilyId: 'm-and-a', name: 'M&A Analyst', stacks: [] },
     { id: 'ma-associate', roleFamilyId: 'm-and-a', name: 'M&A Associate', stacks: [] },
     { id: 'corp-dev', roleFamilyId: 'm-and-a', name: 'Corporate Development Manager', stacks: [] },
@@ -140,7 +159,6 @@ export const seedContent: Content = {
       scope: {
         industryId: 'technology',
         roleFamilyId: 'software-engineering',
-        specialisationId: 'frontend',
         stack: 'react',
       },
       tips: {
@@ -159,7 +177,6 @@ export const seedContent: Content = {
       scope: {
         industryId: 'technology',
         roleFamilyId: 'software-engineering',
-        specialisationId: 'frontend',
         stack: 'react',
       },
       tips: {
@@ -178,7 +195,6 @@ export const seedContent: Content = {
       scope: {
         industryId: 'technology',
         roleFamilyId: 'software-engineering',
-        specialisationId: 'frontend',
         stack: 'react',
       },
       tips: {
@@ -197,7 +213,6 @@ export const seedContent: Content = {
       scope: {
         industryId: 'technology',
         roleFamilyId: 'software-engineering',
-        specialisationId: 'frontend',
         stack: 'nextjs',
       },
       tips: {
@@ -215,7 +230,6 @@ export const seedContent: Content = {
       scope: {
         industryId: 'technology',
         roleFamilyId: 'software-engineering',
-        specialisationId: 'frontend',
         stack: 'nextjs',
       },
       tips: {
@@ -249,6 +263,232 @@ export const seedContent: Content = {
         asking: 'Incident handling.',
         hit: 'Assess scope, roll back or flag off first, communicate, root cause, post-mortem.',
         avoid: 'Debugging live before stopping the impact.',
+      },
+      status: 'approved',
+    },
+    // Software engineering (every engineering role)
+    {
+      id: 'SE-01',
+      text: 'How do you approach reviewing a teammate’s pull request?',
+      type: 'role-specific',
+      level: 'all',
+      scope: { industryId: 'technology', roleFamilyId: 'software-engineering' },
+      tips: {
+        asking: 'Collaboration and code quality judgement.',
+        hit: 'Understand intent first, correctness and risk over style, kind and specific comments, approve when good enough.',
+        avoid: 'Nitpicking formatting a linter should catch.',
+      },
+      status: 'approved',
+    },
+    {
+      id: 'SE-02',
+      text: 'How do you decide what to test, and at which level?',
+      type: 'technical',
+      level: 'mid',
+      scope: { industryId: 'technology', roleFamilyId: 'software-engineering' },
+      tips: {
+        asking: 'A pragmatic testing strategy.',
+        hit: 'Test behaviour not implementation, unit vs integration vs end-to-end trade-offs, cover the risky paths.',
+        avoid: 'Chasing 100% coverage as the goal.',
+      },
+      status: 'approved',
+    },
+    // Backend fundamentals
+    {
+      id: 'BE-01',
+      text: 'Design a REST API for a to-do app. How do you handle versioning and errors?',
+      type: 'technical',
+      level: 'entry',
+      scope: { industryId: 'technology', roleFamilyId: 'software-engineering', specialisationId: 'backend' },
+      tips: {
+        asking: 'Resource modelling and HTTP fluency.',
+        hit: 'Nouns as resources, correct verbs and status codes, consistent error shape, a versioning strategy.',
+        avoid: 'Verbs in URLs and 200 OK for every response.',
+      },
+      status: 'approved',
+    },
+    {
+      id: 'BE-02',
+      text: 'What is a database index, and when can one hurt?',
+      type: 'technical',
+      level: 'entry',
+      scope: { industryId: 'technology', roleFamilyId: 'software-engineering', specialisationId: 'backend' },
+      tips: {
+        asking: 'Database fundamentals.',
+        hit: 'B-tree lookup instead of a full scan, composite index column order, slower writes and extra storage.',
+        avoid: '"Index every column."',
+      },
+      status: 'approved',
+    },
+    {
+      id: 'BE-03',
+      text: 'Explain transaction isolation levels. What anomalies does each prevent?',
+      type: 'technical',
+      level: 'mid',
+      scope: { industryId: 'technology', roleFamilyId: 'software-engineering', specialisationId: 'backend' },
+      tips: {
+        asking: 'Concurrency correctness.',
+        hit: 'Dirty reads, non-repeatable reads, phantoms; read committed vs repeatable read vs serializable; the cost of each.',
+        avoid: 'Assuming the default level makes everything safe.',
+      },
+      status: 'approved',
+    },
+    {
+      id: 'BE-04',
+      text: 'How would you make a payment endpoint safe to retry?',
+      type: 'technical',
+      level: 'mid',
+      scope: { industryId: 'technology', roleFamilyId: 'software-engineering', specialisationId: 'backend' },
+      tips: {
+        asking: 'Idempotency in distributed systems.',
+        hit: 'Client-supplied idempotency key, store the result, return it on repeats, handle concurrent duplicates.',
+        avoid: 'Relying on the client never retrying.',
+      },
+      status: 'approved',
+    },
+    {
+      id: 'BE-05',
+      text: 'An API endpoint’s p99 latency has doubled since yesterday. How do you investigate?',
+      type: 'situational',
+      level: 'mid',
+      scope: { industryId: 'technology', roleFamilyId: 'software-engineering', specialisationId: 'backend' },
+      tips: {
+        asking: 'Methodical production debugging.',
+        hit: 'Check what changed (deploys, traffic, data), traces and slow-query logs, isolate the layer, fix and verify.',
+        avoid: 'Adding a cache before finding the cause.',
+      },
+      status: 'approved',
+    },
+    {
+      id: 'BE-06',
+      text: 'Design a URL shortener that handles 10,000 redirects per second.',
+      type: 'technical',
+      level: 'senior',
+      scope: { industryId: 'technology', roleFamilyId: 'software-engineering', specialisationId: 'backend' },
+      tips: {
+        asking: 'Structured backend system design.',
+        hit: 'Requirements and scale estimates, ID generation, storage choice, caching hot links, read/write split, analytics.',
+        avoid: 'Drawing boxes before agreeing on requirements.',
+      },
+      status: 'approved',
+    },
+    // Node.js
+    {
+      id: 'ND-01',
+      text: 'Why is blocking the event loop a problem in Node.js, and how do you avoid it?',
+      type: 'technical',
+      level: 'mid',
+      scope: { industryId: 'technology', roleFamilyId: 'software-engineering', stack: 'nodejs' },
+      tips: {
+        asking: 'The Node concurrency model.',
+        hit: 'One thread runs JS, so CPU work stalls every request; use async I/O, worker threads or a job queue.',
+        avoid: 'Saying async/await makes CPU-heavy code non-blocking.',
+      },
+      status: 'approved',
+    },
+    {
+      id: 'ND-02',
+      text: 'How do you handle errors in an Express or Fastify app so one bad request can’t crash the server?',
+      type: 'technical',
+      level: 'entry',
+      scope: { industryId: 'technology', roleFamilyId: 'software-engineering', stack: 'nodejs' },
+      tips: {
+        asking: 'Robust error handling.',
+        hit: 'Central error middleware, awaiting every promise, unhandled rejection handling, safe messages to clients.',
+        avoid: 'Swallowing errors or leaking stack traces.',
+      },
+      status: 'approved',
+    },
+    // Python
+    {
+      id: 'PY-01',
+      text: 'What is the GIL, and how does it affect concurrency in Python?',
+      type: 'technical',
+      level: 'mid',
+      scope: { industryId: 'technology', roleFamilyId: 'software-engineering', stack: 'python' },
+      tips: {
+        asking: 'Python’s concurrency trade-offs.',
+        hit: 'One thread runs bytecode at a time; threads or asyncio suit I/O, multiprocessing suits CPU work.',
+        avoid: 'Saying Python can’t do concurrency at all.',
+      },
+      status: 'approved',
+    },
+    {
+      id: 'PY-02',
+      text: 'When would you choose FastAPI over Django, or the other way round?',
+      type: 'technical',
+      level: 'mid',
+      scope: { industryId: 'technology', roleFamilyId: 'software-engineering', stack: 'python' },
+      tips: {
+        asking: 'Framework judgement.',
+        hit: 'Django for batteries-included apps (ORM, admin, auth); FastAPI for typed, async APIs; team and ecosystem fit.',
+        avoid: 'Picking one on hype alone.',
+      },
+      status: 'approved',
+    },
+    // Fullstack
+    {
+      id: 'FS-01',
+      text: 'Walk me through building a feature end to end, from database schema to UI.',
+      type: 'role-specific',
+      level: 'mid',
+      scope: { industryId: 'technology', roleFamilyId: 'software-engineering', specialisationId: 'fullstack' },
+      tips: {
+        asking: 'Ownership across the stack.',
+        hit: 'Clarify the requirement, schema and migration, API contract, UI states, tests, rollout behind a flag.',
+        avoid: 'Treating either the frontend or the backend as an afterthought.',
+      },
+      status: 'approved',
+    },
+    {
+      id: 'FS-02',
+      text: 'How would you implement authentication for a web app with a separate API?',
+      type: 'technical',
+      level: 'mid',
+      scope: { industryId: 'technology', roleFamilyId: 'software-engineering', specialisationId: 'fullstack' },
+      tips: {
+        asking: 'Security across the client–server boundary.',
+        hit: 'Session cookies vs tokens, HttpOnly and SameSite, CSRF, token refresh, authorising on the server every time.',
+        avoid: 'Storing long-lived tokens in localStorage without discussing the risk.',
+      },
+      status: 'approved',
+    },
+    {
+      id: 'FS-03',
+      text: 'Where should validation live: the client, the server or both?',
+      type: 'technical',
+      level: 'entry',
+      scope: { industryId: 'technology', roleFamilyId: 'software-engineering', specialisationId: 'fullstack' },
+      tips: {
+        asking: 'Trust boundaries.',
+        hit: 'Client for fast feedback, server as the source of truth, a shared schema so the two can’t drift.',
+        avoid: 'Trusting client-side validation alone.',
+      },
+      status: 'approved',
+    },
+    {
+      id: 'FS-04',
+      text: 'Users see stale data after saving a form. How do you track down the cause?',
+      type: 'situational',
+      level: 'mid',
+      scope: { industryId: 'technology', roleFamilyId: 'software-engineering', specialisationId: 'fullstack' },
+      tips: {
+        asking: 'Debugging across caches and layers.',
+        hit: 'Confirm the write landed, then check each cache: client state, HTTP or CDN cache, server cache, read replicas.',
+        avoid: 'Blaming the browser cache without evidence.',
+      },
+      status: 'approved',
+    },
+    {
+      id: 'FS-05',
+      text: 'Design a real-time collaborative comments feature for a document app.',
+      type: 'technical',
+      level: 'senior',
+      scope: { industryId: 'technology', roleFamilyId: 'software-engineering', specialisationId: 'fullstack' },
+      tips: {
+        asking: 'End-to-end system design.',
+        hit: 'Data model, WebSockets vs polling, optimistic UI, ordering and conflicts, presence, scaling the fan-out.',
+        avoid: 'Ignoring the offline and reconnect cases.',
       },
       status: 'approved',
     },
