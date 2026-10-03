@@ -1,5 +1,6 @@
 import { detectSpeech, embed, loadModels, transcribe } from '../lib/speech/engine.ts';
 import { USE_FILLER_PROMPT } from '../lib/speech/models.ts';
+import { analyseAnswer } from '../lib/analysis/analyse.ts';
 import type { FromWorker, ToWorker } from '../lib/speech/protocol.ts';
 
 const post = (m: FromWorker) => self.postMessage(m);
@@ -25,10 +26,17 @@ self.onmessage = async ({ data }: MessageEvent<ToWorker>) => {
       post({ type: 'transcribed', id, data: { words, segments, ms: { whisper: t1 - t0, vad: performance.now() - t1 } } });
       return;
     }
-    // Wired up in Task 8.
-    void USE_FILLER_PROMPT;
-    void embed;
-    post({ type: 'failed', id, message: 'analyse is not implemented yet' });
+    if (data.type === 'analyse') {
+      post({ type: 'step', id, step: 'transcribing' });
+      const words = await transcribe(data.audio, USE_FILLER_PROMPT);
+      post({ type: 'step', id, step: 'pauses' });
+      const segments = await detectSpeech(data.audio);
+      post({ type: 'step', id, step: 'content' });
+      const result = await analyseAnswer({ words, segments, tips: data.tips, embed });
+      post({ type: 'analysed', id, result });
+      return;
+    }
+    post({ type: 'failed', id, message: 'unknown message type' });
   } catch (e) {
     post({ type: 'failed', id, message: String(e) });
   }
