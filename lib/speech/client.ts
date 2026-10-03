@@ -49,7 +49,11 @@ export async function loadModels(onProgress: (loaded: number, total: number) => 
     const files = new Map<string, { loaded: number; total: number }>();
     const finish = () => {
       stop();
-      rejectors.delete(reject);
+      rejectors.delete(fail);
+    };
+    const fail = (e: Error) => {
+      finish();
+      reject(e);
     };
     const stop = listen((m) => {
       if (m.type === 'progress') {
@@ -66,11 +70,10 @@ export async function loadModels(onProgress: (loaded: number, total: number) => 
         loaded = true;
         resolve();
       } else if (m.type === 'load-error') {
-        finish();
-        reject(new Error(m.message));
+        fail(new Error(m.message));
       }
     });
-    rejectors.add(reject);
+    rejectors.add(fail);
     getWorker().postMessage({ type: 'load', backend: backendUsed } satisfies ToWorker);
   });
 }
