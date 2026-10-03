@@ -6,7 +6,7 @@ import { SAMPLE_RATE, decodeTo16kMono, rms } from './audio.ts';
 
 export type Recording = { audio: Float32Array; url: string; durationSec: number };
 
-type Live = { stream: MediaStream; recorder: MediaRecorder; ctx: AudioContext; raf: number; clock: number; lost: boolean; cancelled: boolean };
+type Live = { stream: MediaStream; recorder: MediaRecorder; ctx: AudioContext; raf: number; clock: number; lost: boolean };
 type Options = {
   onStop: (r: Recording) => void; // normal stop or the 3:00 limit
   onLost: (r: Recording) => void; // mic unplugged mid-recording
@@ -20,6 +20,7 @@ export function useRecorder({ onStop, onLost }: Options) {
   const [recording, setRecording] = useState<Recording | null>(null);
   const live = useRef<Live | null>(null);
   const starting = useRef(false);
+  const session = useRef(0);
   const handlers = useRef({ onStop, onLost });
   handlers.current = { onStop, onLost };
 
@@ -49,9 +50,9 @@ export function useRecorder({ onStop, onLost }: Options) {
       const startedAt = performance.now();
       let lastSound = startedAt;
       let lastPaint = 0;
-      const l: Live = { stream, recorder, ctx, raf: 0, clock: 0, lost: false, cancelled: false };
+      const l: Live = { stream, recorder, ctx, raf: 0, clock: 0, lost: false };
       live.current = l;
-      starting.current = false;
+      const mine = ++session.current;
 
       // Waveform and flat-mic check: animation frames (paused in hidden tabs, which is fine).
       const frame = () => {
@@ -77,9 +78,9 @@ export function useRecorder({ onStop, onLost }: Options) {
       recorder.onstop = async () => {
         const lost = l.lost;
         teardown();
-        if (l.cancelled) return;
         const blob = new Blob(chunks, { type: recorder.mimeType });
         const audio = await decodeTo16kMono(blob);
+        if (mine !== session.current) return;
         const rec: Recording = { audio, url: URL.createObjectURL(blob), durationSec: audio.length / SAMPLE_RATE };
         setRecording(rec);
         (lost ? handlers.current.onLost : handlers.current.onStop)(rec);
@@ -97,8 +98,10 @@ export function useRecorder({ onStop, onLost }: Options) {
       l.raf = requestAnimationFrame(frame);
       l.clock = window.setInterval(tick, 250);
     } catch (e) {
-      starting.current = false;
+      teardown();
       throw e;
+    } finally {
+      starting.current = false;
     }
   }, [teardown]);
 
@@ -109,9 +112,9 @@ export function useRecorder({ onStop, onLost }: Options) {
 
   /** Throws away any recording in progress or finished. Nothing is kept. */
   const discard = useCallback(() => {
+    session.current++;
     const l = live.current;
     if (l) {
-      l.cancelled = true;
       l.recorder.onstop = null;
       if (l.recorder.state === 'recording') l.recorder.stop();
       teardown();
