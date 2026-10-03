@@ -1,0 +1,63 @@
+@import 'tailwindcss';
+
+@theme {
+  --color-paper: #fbf8ff;
+  --color-ink: #1b1340;
+  --color-ink-soft: #4a4270;
+  --color-violet: #6b3bff;
+  --color-emerald: #00a676;
+  --color-sun: #ffc93c;
+  --color-coral: #ff6b57;
+  --color-sky: #3cb4ff;
+  --color-pink: #ff5fb0;
+
+  --font-display: 'Bricolage Grotesque Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-sans: 'Plus Jakarta Sans Variable', ui-sans-serif, system-ui, sans-serif;
+
+  /* Cards sit on the table with a solid ink shadow rather than a soft blur. */
+  --shadow-card: 6px 6px 0 0 var(--color-ink);
+  --shadow-card-lift: 10px 10px 0 0 var(--color-ink);
+}
+
+:root {
+  --industry: var(--color-violet);
+}
+
+html {
+  background: var(--color-paper);
+  color: var(--color-ink);
+}
+
+body {
+  font-family: var(--font-sans);
+  min-height: 100dvh;
+  /* Soft confetti dots on the table: colourful without competing with the cards. */
+  background-image:
+    radial-gradient(circle at 12% 18%, color-mix(in oklab, var(--color-sun) 35%, transparent) 0 3px, transparent 4px),
+    radial-gradient(circle at 82% 12%, color-mix(in oklab, var(--color-pink) 30%, transparent) 0 4px, transparent 5px),
+    radial-gradient(circle at 70% 78%, color-mix(in oklab, var(--color-sky) 30%, transparent) 0 3px, transparent 4px),
+    radial-gradient(circle at 24% 84%, color-mix(in oklab, var(--color-coral) 30%, transparent) 0 4px, transparent 5px);
+  background-size: 420px 420px;
+}
+
+:focus-visible {
+  outline: 3px solid var(--color-sun);
+  outline-offset: 3px;
+  border-radius: 6px;
+}
+
+.card-surface {
+  border: 2.5px solid var(--color-ink);
+  border-radius: 22px;
+  box-shadow: var(--shadow-card);
+}
+
+/* Card back: a bold diagonal pattern in the industry colour. */
+.card-back {
+  background:
+    repeating-linear-gradient(
+      45deg,
+      var(--industry) 0 14px,
+      color-mix(in oklab, var(--industry) 82%, white) 14px 28px
+    );
+}

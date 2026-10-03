@@ -1,0 +1,16 @@
+{
+  "name": "prepdeck-studio",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "sanity dev",
+    "deploy": "sanity deploy",
+    "import": "sanity dataset import ../question-bank.ndjson production --replace"
+  },
+  "dependencies": {
+    "sanity": "^4",
+    "react": "^19",
+    "react-dom": "^19",
+    "styled-components": "^6"
+  }
+}
