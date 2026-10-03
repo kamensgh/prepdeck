@@ -31,3 +31,5 @@ export const CONTENT = {
 export const ENGLISH = { minSpeechSec: 20, minWordsPerSpeechSec: 1.0 } as const;
 
 export const RECORDING = { maxSec: 180, countInSec: 3, flatMicSec: 5, flatRms: 0.001 } as const;
+
+export const SEGMENTS = { joinGapSec: 0.1 } as const; // VAD segments split by a chunk cut are joined across gaps this small
