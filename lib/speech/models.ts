@@ -31,6 +31,21 @@ export function dtypesFor(profile: ProfileId, backend: 'webgpu' | 'wasm', f16: b
   return backend === 'wasm' ? p.wasm : f16 ? p.webgpuF16 : p.webgpu;
 }
 
+// Transformers.js names weight files by dtype (DEFAULT_DTYPE_SUFFIX_MAPPING in its utils/dtypes.js).
+const SUFFIX: Record<string, string> = {
+  fp32: '', fp16: '_fp16', int8: '_int8', uint8: '_uint8', q8: '_quantized', q4: '_q4', q4f16: '_q4f16', bnb4: '_bnb4',
+};
+
+/** The ONNX weight files a set of dtypes downloads. */
+export function modelFiles(d: Dtypes): { repo: string; path: string }[] {
+  const whisper = (module: string) => (typeof d.whisper === 'string' ? d.whisper : d.whisper[module]);
+  return [
+    { repo: MODELS.whisper, path: `onnx/encoder_model${SUFFIX[whisper('encoder_model')]}.onnx` },
+    { repo: MODELS.whisper, path: `onnx/decoder_model_merged${SUFFIX[whisper('decoder_model_merged')]}.onnx` },
+    { repo: MODELS.embed, path: `onnx/model${SUFFIX[d.embed]}.onnx` },
+  ];
+}
+
 // vad-web bundles onnxruntime-web 1.30.0; Transformers.js uses its own runtime build.
 export const VAD_ASSETS = 'https://cdn.jsdelivr.net/npm/@ricky0123/vad-web@0.0.31/dist/';
 export const ORT_WASM = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.30.0/dist/';

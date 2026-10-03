@@ -1,5 +1,5 @@
 import type { Result } from '../analysis/types.ts';
-import { ACTIVE_PROFILE, dtypesFor, MODEL_BYTES_ESTIMATE, MODELS, type Dtypes, type ProfileId } from './models.ts';
+import { ACTIVE_PROFILE, dtypesFor, MODEL_BYTES_ESTIMATE, MODELS, modelFiles, type Dtypes, type ProfileId } from './models.ts';
 import type { AnalysisStep, Backend, FromWorker, Tips, ToWorker, Transcribed } from './protocol.ts';
 
 /** Thrown to pending callers when the user cancels; callers should stay silent. */
@@ -157,12 +157,13 @@ export function cancel(): void {
   rejectors.clear();
 }
 
-/** Whether the Whisper files are already in Transformers.js's browser cache. */
-export async function modelsCached(): Promise<boolean> {
+/** Whether every weight file of the profile (for this device's backend) is already in the browser cache. */
+export async function modelsCached(profile: ProfileId = ACTIVE_PROFILE): Promise<boolean> {
   try {
     if (!('caches' in globalThis)) return false;
-    const keys = await (await caches.open('transformers-cache')).keys();
-    return keys.some((r) => r.url.includes(MODELS.whisper));
+    const { backend, f16 } = await pickBackend();
+    const urls = (await (await caches.open('transformers-cache')).keys()).map((r) => r.url);
+    return modelFiles(dtypesFor(profile, backend, f16)).every((f) => urls.some((u) => u.includes(`${f.repo}/resolve/main/${f.path}`)));
   } catch {
     return false;
   }
