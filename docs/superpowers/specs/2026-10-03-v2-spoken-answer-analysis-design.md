@@ -1,6 +1,6 @@
 # Prepdeck v2 PRD: Spoken Answer Analysis
 
-2026-10-03 · Shareable copy: https://claude.ai/code/artifact/c5674832-3ffa-4369-a535-2bd9469659d2
+2026-10-03 · Amended after Stage 0 (see `2026-10-03-v2-stage0-results.md`) · Shareable copy: https://claude.ai/code/artifact/c5674832-3ffa-4369-a535-2bd9469659d2
 
 ## Summary and goals
 
@@ -25,7 +25,7 @@ The grading rubric comes from each question's existing `tips.hit` and `tips.avoi
 | Presentation | Three ratings (Strong / Good / Needs work) with a specific breakdown | Readable at a glance; no blended grade hiding a weakness |
 | Recording limit | 3 minutes | Covers nearly every question type; keeps analysis fast |
 | Where it happens | Full-screen overlay opened by **Analyse my answer** | Separates recording from the deck; keeps deck state and loaded models |
-| Speech engine | Whisper `base.en` + Silero VAD + MiniLM, via Transformers.js | Word timestamps, robust pause detection, ~100 MB one-time download |
+| Speech engine | Whisper `base.en` + Silero VAD + MiniLM via Transformers.js, transcribed in ~25 s chunks while recording; compact quantisation | Word timestamps and robust pause detection; results ~3–5 s after Stop; ~140 MB one-time download |
 
 **Out of scope for v2:** accounts, saved history or progress tracking, cloud transcription, non-English answers, self-hosted models, and a blended overall score.
 
@@ -33,7 +33,7 @@ The grading rubric comes from each question's existing `tips.hit` and `tips.avoi
 
 A dealt card gains one button, **Analyse my answer**, beside "What makes a great answer?". It opens a full-screen overlay that hides the deck; the card, tips and deck otherwise behave exactly as in v1.
 
-1. **Setup (first use only).** "Grading runs on your device. Nothing is uploaded. We'll download about 100 MB once." **Download and continue** shows progress in MB with a time estimate, then the browser asks for the microphone. Models are cached for later visits.
+1. **Setup (first use only).** "Grading runs on your device. Nothing is uploaded. We'll download about 140 MB once." **Download and continue** shows progress in MB with a time estimate, then the browser asks for the microphone. Models are cached for later visits.
 2. **Ready.** The question text at the top, a large **Start recording** button, and ✕ Close. Tips are not available in the overlay until results.
 3. **Recording.** A 3-second count-in, then a live waveform, a countdown (`2:41 left`) and **Stop** (Space also stops). Recording stops itself at 3:00.
 4. **Analysing.** "Listening back…" with steps: Transcribing → Checking pauses → Checking content. Target 5–15 s.
@@ -48,6 +48,8 @@ Close, Esc and the browser Back button all exit; mid-recording they ask "Discard
 ## Analysis pipeline
 
 All analysis runs in the browser: three small models produce raw signals, and plain TypeScript functions turn them into ratings. Grading logic never touches a model, so it can be tuned and unit-tested on its own.
+
+**Amended after Stage 0:** the recorder streams 16 kHz audio and cuts it into ~25 s chunks at the quietest moment; the worker transcribes and runs VAD on each chunk while the user is still talking, so Stop only waits for the last chunk (whole-recording analysis of a 3-minute answer took ~24 s). Whisper folds natural "um"s into stretched words, so Fluency also counts **hesitations**: voiced time after a word, beyond its expected length, that VAD marks as speech.
 
 ```
 Mic → Recorder ──16 kHz audio──▶ Analysis worker (background thread)
@@ -72,7 +74,7 @@ Mic → Recorder ──16 kHz audio──▶ Analysis worker (background thread)
 | Silero VAD (~2 MB) | Finds speech vs silence in the audio itself | → `segments [{start, end}]` |
 | Whisper `base.en` (~75 MB) | Transcribes with word timestamps; a filler-heavy initial prompt nudges it to keep fillers | → `words [{text, start, end}]` |
 | MiniLM (~23 MB) | Embeds rubric points and transcript windows | → vectors for `content()` |
-| `lib/analysis/fluency.ts` | Counts fillers with context rules ("it's, like, slow" counts; "I like React" doesn't) | `fluency(words)` |
+| `lib/analysis/fluency.ts` | Counts fillers with context rules ("it's, like, slow" counts; "I like React" doesn't) and hesitations (`hesitation.ts`) | `fluency(words, segments)` |
 | `lib/analysis/pacing.ts` | Long pauses, longest pause + preceding words, rate, length | `pacing(segments, words)` |
 | `lib/analysis/content.ts` | Splits `tips.hit` into points, marks covered or missed, flags `tips.avoid` matches | `content(words, tips, embed)` |
 | `lib/analysis/rate.ts` | Applies thresholds, writes breakdown lines | `rate(metrics) → Result` |
@@ -87,12 +89,13 @@ Each dimension gets Strong, Good or Needs work using the starting thresholds bel
 
 | Dimension | Strong | Good | Needs work | Breakdown example |
 | --- | --- | --- | --- | --- |
-| Fluency (fillers per minute) | under 3 | 3–6 | over 6 | "you said 'like' 6 times, 'um' 4 times, 'basically' 3 times" |
+| Fluency (fillers + hesitations per minute) | under 3 | 3–6 | over 6 | "you said 'like' 6 times, 'um' 4 times, 'basically' 3 times" · "4 hesitations, longest after 'the thing about…'" |
 | Pacing | 0–1 long pauses, normal rate and length | 2–3 long pauses, or rate or length off | 4+ long pauses, or rate and length both off | "longest pause 4.2s, after 'so the browser…'" |
 | Content (rubric points covered) | 70% or more | 40–69% | under 40% | "covered 5 of 7 points; missed: layout, paint" |
 
 Definitions:
 
+- **Hesitation:** 0.8 s or more of voiced time after a word, beyond 0.25 s + 0.07 s per letter, before the next word. Silence in that span is a pause instead.
 - **Long pause:** 2.5 s or more of silence mid-answer. Silence before the first word is thinking time; up to 5 s is free, beyond that it counts as one long pause.
 - **Normal rate:** 110–170 words per minute. **Normal length:** 30 s to 2:30.
 - **Avoid match:** any `tips.avoid` match drops Content one level and adds "⚠ sounded like: '…'".
@@ -112,7 +115,7 @@ Every failure gives the user a clear next step and never affects the deck behind
 | Device | Model fails to load or runs out of memory | "Your device couldn't load the analysis model" + Retry |
 | Device | Mobile browsers | Supported but labelled "best on a laptop" until Stage 0 confirms phone performance |
 | Setup | Download interrupted | Resumes from cache with Retry; each model cached separately |
-| Setup | Storage full | "Not enough space to store the analysis model (~100 MB)" |
+| Setup | Storage full | "Not enough space to store the analysis model (~140 MB)" |
 | Setup | User cancels download | Back to Ready; nothing broken |
 | Mic | Permission denied | Browser-specific steps to re-enable; Start stays disabled |
 | Mic | Input level flat (a dead mic, not just a quiet speaker) for 5 s | "We can't hear you. Check your microphone" shown during recording; normal silence while thinking never triggers it |
@@ -128,6 +131,8 @@ Every failure gives the user a clear next step and never affects the deck behind
 ## Delivery, testing and success
 
 v2 ships in three stages, each releasable on its own; Stage 0 must pass before Stage 1 UI work starts.
+
+**Stage 0 outcome (2026-10-03):** failed as specified (prompting is unsupported, natural fillers are not transcribed, 3-minute analysis ~24 s, download ~300 MB) and continued with three agreed changes: chunked transcription during recording, hesitation detection, and a compact model profile. Stage 0b re-measures the compact profile and streaming speed.
 
 1. **Stage 0: Spike (about 1 week).** Prove the two riskiest assumptions with real recordings.
     - Filler retention: 20 hand-labelled, filler-heavy answers. Pass = at least 80% of "um", "uh" and "like" detected. Fail → detect "um/uh" acoustically (voiced VAD segments with no matching word), then consider CrisperWhisper.
@@ -156,7 +161,7 @@ Measuring these needs anonymous events only (`setup_completed`, `analysis_run` w
 
 **Risks and open questions:**
 
-- [ ] Whisper may drop fillers even with prompting; Stage 0 decides the fallback.
+- [x] Whisper drops natural fillers and prompting is unsupported (Stage 0); Fluency adds VAD-based hesitations.
 - [ ] Analytics provider is still open (Vercel Analytics or PostHog); success metrics depend on it.
 - [ ] Self-hosting models (e.g. on Vercel Blob) instead of Hugging Face's CDN is a follow-up, not v2.
 - [ ] Phone support level depends on Stage 0 timings.

@@ -10,6 +10,8 @@
 
 **Spec:** `docs/superpowers/specs/2026-10-03-v2-spoken-answer-analysis-design.md`
 
+**Stage 0 results and amendment (2026-10-03):** `docs/superpowers/specs/2026-10-03-v2-stage0-results.md`. Tasks 15–18 were added after Stage 0. **Execution order: 1–8, 15, 16, 17, 18, 9, 10, 11, 12, 13, 14.** Tasks 9, 12, 13 and 14 below are already updated for them.
+
 ## Global Constraints
 
 - Everything runs in the browser. No audio, transcript or score is ever sent to a server. Model files are downloaded from Hugging Face / jsDelivr only.
@@ -1930,11 +1932,14 @@ import { analyseAnswer } from '../lib/analysis/analyse.ts';
 import { wordsFromText } from '../lib/analysis/fixtures.ts';
 import { goldenAnswers } from '../lib/analysis/golden.ts';
 import { seedContent } from '../lib/content/seed.ts';
-import { MODELS } from '../lib/speech/models.ts';
+import { ACTIVE_PROFILE, MODELS, dtypesFor } from '../lib/speech/models.ts';
 
 const expected = { strong: 'strong', partial: 'good', 'off-topic': 'needs-work' } as const;
 
-const extractor = (await pipeline('feature-extraction', MODELS.embed)) as FeatureExtractionPipeline;
+// Same quantisation the app ships with (Node runs the WASM/CPU build).
+const extractor = (await pipeline('feature-extraction', MODELS.embed, {
+  dtype: dtypesFor(ACTIVE_PROFILE, 'wasm', false).embed,
+})) as FeatureExtractionPipeline;
 const embed = async (texts: string[]) => (await extractor(texts, { pooling: 'mean', normalize: true })).tolist() as number[][];
 
 let agree = 0;
@@ -2322,19 +2327,22 @@ git commit -m "feat(ui): setup and recording steps for the analysis overlay"
 - Create: `components/analysis/Transcript.tsx`, `components/analysis/ResultsStep.tsx`
 
 **Interfaces:**
-- Consumes: `Result`, `Dimension`, `Rating`, `Pause`, `Word` (Task 2); `TipsPanel` (`components/TipsPanel.tsx`); `Question` (`lib/content/schema.ts`)
-- Produces: `<Transcript words fillerIndexes longPauses />`; `<ResultsStep result question audioUrl deckDone onTryAgain onNewQuestion onBack />`
+- Consumes: `Result`, `Dimension`, `Rating`, `Pause`, `Word` (Task 2), `Hesitation` and `GradedResult.hesitations` (Task 16); `TipsPanel` (`components/TipsPanel.tsx`); `Question` (`lib/content/schema.ts`)
+- Produces: `<Transcript words fillerIndexes longPauses hesitations />`; `<ResultsStep result question audioUrl deckDone onTryAgain onNewQuestion onBack />`
 
 - [ ] **Step 1: Write the transcript**
 
 `components/analysis/Transcript.tsx`:
 
 ```tsx
-import type { Pause, Word } from '@/lib/analysis/types';
+import type { Hesitation, Pause, Word } from '@/lib/analysis/types';
 
-/** The answer as said, with fillers marked and long pauses shown where they fell. */
-export function Transcript({ words, fillerIndexes, longPauses }: { words: Word[]; fillerIndexes: number[]; longPauses: Pause[] }) {
+type Props = { words: Word[]; fillerIndexes: number[]; longPauses: Pause[]; hesitations: Hesitation[] };
+
+/** The answer as said, with fillers marked and long pauses and hesitations shown where they fell. */
+export function Transcript({ words, fillerIndexes, longPauses, hesitations }: Props) {
   const fillers = new Set(fillerIndexes);
+  const heldAfter = new Map(hesitations.map((h) => [h.afterIndex, h]));
   // A pause sits before the first word that starts after it ends.
   const pauseBefore = new Map<number, Pause>();
   for (const p of longPauses) {
@@ -2349,6 +2357,9 @@ export function Transcript({ words, fillerIndexes, longPauses }: { words: Word[]
             <span className="mx-1 rounded-full bg-sky/30 px-2 py-0.5 text-sm font-bold">⏸ {pauseBefore.get(i)!.duration.toFixed(1)}s</span>
           )}
           {fillers.has(i) ? <mark className="rounded bg-sun px-0.5">{w.text}</mark> : w.text}{' '}
+          {heldAfter.has(i) && (
+            <span className="mr-1 rounded-full bg-sun/40 px-2 py-0.5 text-sm font-bold">… {heldAfter.get(i)!.duration.toFixed(1)}s </span>
+          )}
         </span>
       ))}
     </p>
@@ -2441,7 +2452,7 @@ export function ResultsStep({ result, question, audioUrl, deckDone, onTryAgain, 
         <h3 className="font-display text-lg font-bold">What you said</h3>
         {audioUrl && <audio controls src={audioUrl} className="mt-3 w-full" />}
         <div className="mt-3">
-          <Transcript words={result.words} fillerIndexes={result.fillerIndexes} longPauses={result.longPauses} />
+          <Transcript words={result.words} fillerIndexes={result.fillerIndexes} longPauses={result.longPauses} hesitations={result.hesitations} />
         </div>
       </section>
       <TipsPanel question={question} />
@@ -2470,7 +2481,7 @@ git commit -m "feat(ui): results with ratings, breakdown, playback and transcrip
 - Modify: `components/QuestionCard.tsx`, `components/Deck.tsx`
 
 **Interfaces:**
-- Consumes: everything from Tasks 2, 3, 10, 11, 12
+- Consumes: everything from Tasks 2, 3, 10, 11, 12, plus `engine.startSession(): AnalysisSession` with `push(audio, offsetSec)`, `finish(tips, onStep): Promise<Result>`, `reset()` (Task 18) and `useRecorder`'s `onChunk` option (Task 17)
 - Produces: `<AnalysisOverlay question deckDone onClose onNewQuestion />`; `QuestionCard` gains optional `onAnalyse?: () => void`
 
 - [ ] **Step 1: Write the overlay**
@@ -2487,7 +2498,7 @@ import { micHelp, requestMic } from '@/lib/speech/mic';
 import { RECORDING } from '@/lib/analysis/thresholds';
 import { initialSession, sessionReducer } from '@/lib/speech/session';
 import { isLikelyPhone } from '@/lib/speech/support';
-import { useRecorder, type Recording } from '@/lib/speech/useRecorder';
+import { useRecorder } from '@/lib/speech/useRecorder';
 import { RecordStep } from './RecordStep';
 import { ResultsStep } from './ResultsStep';
 import { SetupStep } from './SetupStep';
@@ -2508,30 +2519,35 @@ export function AnalysisOverlay({ question, deckDone, onClose, onNewQuestion }: 
   const [webgpu, setWebgpu] = useState<boolean | null>(null);
   const [startedAt, setStartedAt] = useState<number | null>(null);
   const [announce, setAnnounce] = useState('');
-  const pending = useRef<Recording | null>(null);
+  // The worker transcribes ~25 s chunks while the user is still talking (Stage 0: whole-recording
+  // analysis of a 3-minute answer took ~24 s). Stop only waits for the last chunk.
+  const session = useRef<engine.AnalysisSession | null>(null);
   const stateRef = useRef(state);
   stateRef.current = state;
 
-  const runAnalysis = useCallback(
-    async (rec: Recording) => {
-      if (!question) return;
-      dispatch({ type: 'recording-stopped' });
-      try {
-        const result = await engine.analyse(rec.audio, question.tips, (stage) => dispatch({ type: 'stage', stage }));
-        dispatch({ type: 'analysed', result });
-      } catch (e) {
-        if (!(e instanceof engine.Cancelled)) dispatch({ type: 'analysis-failed' });
-      }
-    },
-    [question],
-  );
+  const dropSession = () => {
+    session.current?.reset();
+    session.current = null;
+  };
+
+  const finishAnalysis = useCallback(async () => {
+    const s = session.current;
+    if (!question || !s) return;
+    dispatch({ type: 'recording-stopped' });
+    try {
+      const result = await s.finish(question.tips, (stage) => dispatch({ type: 'stage', stage }));
+      dispatch({ type: 'analysed', result });
+    } catch (e) {
+      if (!(e instanceof engine.Cancelled)) dispatch({ type: 'analysis-failed' });
+    } finally {
+      if (session.current === s) session.current = null;
+    }
+  }, [question]);
 
   const recorder = useRecorder({
-    onStop: (rec) => void runAnalysis(rec),
-    onLost: (rec) => {
-      pending.current = rec;
-      dispatch({ type: 'mic-lost' });
-    },
+    onChunk: (audio, offsetSec) => session.current?.push(audio, offsetSec),
+    onStop: () => void finishAnalysis(),
+    onLost: () => dispatch({ type: 'mic-lost' }),
   });
 
   const opened = useRef(false);
@@ -2547,6 +2563,7 @@ export function AnalysisOverlay({ question, deckDone, onClose, onNewQuestion }: 
     }
     const onPop = () => {
       if (stateRef.current.step === 'analysing') engine.cancel();
+      else dropSession();
       onClose();
     };
     window.addEventListener('popstate', onPop);
@@ -2562,6 +2579,7 @@ export function AnalysisOverlay({ question, deckDone, onClose, onNewQuestion }: 
     const s = stateRef.current.step;
     if ((s === 'count-in' || s === 'recording') && !window.confirm('Discard this recording?')) return;
     recorder.discard();
+    dropSession();
     history.back(); // fires popstate → onClose
   }, [recorder]);
 
@@ -2595,7 +2613,11 @@ export function AnalysisOverlay({ question, deckDone, onClose, onNewQuestion }: 
   useEffect(() => {
     if (state.step === 'recording' && !recorder.active) {
       setAnnounce('Recording started');
-      recorder.start().catch(() => dispatch({ type: 'mic-failed' }));
+      session.current = engine.startSession();
+      recorder.start().catch(() => {
+        dropSession();
+        dispatch({ type: 'mic-failed' });
+      });
     }
     if (state.step === 'analysing') setAnnounce(stageLabel[state.stage]);
     if (state.step === 'results') setAnnounce('Results ready');
@@ -2613,12 +2635,14 @@ export function AnalysisOverlay({ question, deckDone, onClose, onNewQuestion }: 
   const questionId = question?.id;
   useEffect(() => {
     recorder.discard();
+    dropSession();
     dispatch({ type: 'try-again' });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [questionId]);
 
   const tryAgain = () => {
     recorder.discard();
+    dropSession();
     dispatch({ type: 'try-again' });
   };
 
@@ -2683,7 +2707,7 @@ export function AnalysisOverlay({ question, deckDone, onClose, onNewQuestion }: 
             <div className="text-center">
               <p className="font-display text-2xl font-bold">Your microphone disconnected.</p>
               <div className="mt-6 flex justify-center gap-3">
-                <button type="button" onClick={() => pending.current && void runAnalysis(pending.current)} className="card-surface rounded-full! bg-[var(--industry)] px-6 py-3 font-bold text-white">
+                <button type="button" onClick={() => void finishAnalysis()} className="card-surface rounded-full! bg-[var(--industry)] px-6 py-3 font-bold text-white">
                   Analyse what we have
                 </button>
                 <button type="button" onClick={tryAgain} className="rounded-full border-2 border-ink bg-white px-6 py-3 font-bold">
@@ -2846,7 +2870,7 @@ git commit -m "feat(ui): Analyse my answer overlay wired into the deck"
 
 - [ ] **Step 1: Calibrate with real answers**
 
-Record about 20 real answers through the overlay (a mix of strong, partial and off-topic, with natural fillers and pauses). For each, note the rating a human reviewer would give on Content, Fluency and Pacing, and the app's ratings. Adjust `thresholds.ts` until they agree on at least 80% of ratings. Re-run `npm test && npm run test:golden` after every change; update unit tests only where a boundary value deliberately moved.
+Record about 20 real answers through the overlay (a mix of strong, partial and off-topic, with natural fillers and pauses). For each, note the rating a human reviewer would give on Content, Fluency and Pacing, and the app's ratings. Adjust `thresholds.ts` (including `HESITATION`) until they agree on at least 80% of ratings. Set `ACTIVE_PROFILE`, `MODEL_BYTES_ESTIMATE` and `APPROX_DOWNLOAD_MB` in `lib/speech/models.ts` from the Stage 0b profile comparison (Task 15 Step 6) and record the choice in the Stage 0 results doc. Re-run `npm test && npm run test:golden` after every change; update unit tests only where a boundary value deliberately moved.
 
 - [ ] **Step 2: Update the README**
 
@@ -2879,6 +2903,880 @@ gh pr create --title "v2: on-device spoken answer analysis" --body "Implements d
 ```
 
 The branch push creates a Vercel preview deployment; check the overlay there (cross-origin isolation, model download) before merging to `main`.
+
+---
+
+# Stage 0 amendment (run after Task 8, before Task 9)
+
+These tasks implement the three changes agreed after Stage 0 (`docs/superpowers/specs/2026-10-03-v2-stage0-results.md`): model profiles to cut the ~300 MB download, hesitation detection because Whisper absorbs natural "um"s into stretched words, and chunked transcription during recording because whole-recording analysis of a 3-minute answer takes ~24 s.
+
+### Task 15: Model profiles and lab A/B
+
+**Files:**
+- Modify: `lib/speech/models.ts`, `lib/speech/protocol.ts`, `lib/speech/engine.ts`, `lib/speech/client.ts`, `workers/analysis.worker.ts`, `app/lab/speech/LabClient.tsx`
+- Create: `lib/speech/models.test.ts`
+
+**Interfaces:**
+- Produces: `type ProfileId = 'quality' | 'compact'`, `type Dtypes = { whisper: string | Record<string, string>; embed: string }`, `PROFILES`, `ACTIVE_PROFILE`, `dtypesFor(profile: ProfileId, backend: 'webgpu' | 'wasm', f16: boolean): Dtypes` (models.ts); load message becomes `{ type: 'load'; backend: Backend; dtypes: Dtypes }`; `engine.loadModels(backend: Backend, dtypes: Dtypes, onProgress)`; `client.loadModels(onProgress, profile?: ProfileId)`, `client.currentDtypes(): Dtypes | null`
+- Removes: `WHISPER_DTYPE` (replaced by `PROFILES`)
+
+- [ ] **Step 1: Write the failing test**
+
+`lib/speech/models.test.ts`:
+
+```ts
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { PROFILES, dtypesFor } from './models.ts';
+
+test('dtypesFor picks the wasm, webgpu or webgpu-f16 dtypes', () => {
+  assert.equal(dtypesFor('compact', 'wasm', true), PROFILES.compact.wasm);
+  assert.equal(dtypesFor('compact', 'webgpu', true), PROFILES.compact.webgpuF16);
+  assert.equal(dtypesFor('compact', 'webgpu', false), PROFILES.compact.webgpu);
+  assert.equal(dtypesFor('quality', 'webgpu', false), PROFILES.quality.webgpu);
+});
+
+test('no profile asks for f16 weights without shader-f16', () => {
+  for (const id of ['quality', 'compact'] as const) {
+    assert.ok(!JSON.stringify(dtypesFor(id, 'webgpu', false)).includes('16'));
+    assert.ok(!JSON.stringify(dtypesFor(id, 'wasm', false)).includes('16'));
+  }
+});
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `npm test`
+Expected: FAIL, `dtypesFor` is not exported.
+
+- [ ] **Step 3: Replace the dtype config in `lib/speech/models.ts`**
+
+Delete the `WHISPER_DTYPE` constant and its comment, and add after `MODELS`:
+
+```ts
+export type ProfileId = 'quality' | 'compact';
+export type Dtypes = { whisper: string | Record<string, string>; embed: string };
+type Profile = { webgpuF16: Dtypes; webgpu: Dtypes; wasm: Dtypes };
+
+// Whisper's encoder is sensitive to quantisation, so "quality" keeps it fp32 on WebGPU.
+// f16 weights need WebGPU's shader-f16 feature. Sizes are in the Stage 0 results doc.
+export const PROFILES: Record<ProfileId, Profile> = {
+  quality: {
+    webgpuF16: { whisper: { encoder_model: 'fp32', decoder_model_merged: 'q4' }, embed: 'fp32' },
+    webgpu: { whisper: { encoder_model: 'fp32', decoder_model_merged: 'q4' }, embed: 'fp32' },
+    wasm: { whisper: 'q8', embed: 'q8' },
+  },
+  compact: {
+    webgpuF16: { whisper: { encoder_model: 'fp16', decoder_model_merged: 'q4f16' }, embed: 'q8' },
+    webgpu: { whisper: { encoder_model: 'fp32', decoder_model_merged: 'q8' }, embed: 'q8' },
+    wasm: { whisper: 'q8', embed: 'q8' },
+  },
+};
+
+/** The profile the app ships with. Task 14 confirms it from the Step 6 comparison. */
+export const ACTIVE_PROFILE: ProfileId = 'compact';
+
+export function dtypesFor(profile: ProfileId, backend: 'webgpu' | 'wasm', f16: boolean): Dtypes {
+  const p = PROFILES[profile];
+  return backend === 'wasm' ? p.wasm : f16 ? p.webgpuF16 : p.webgpu;
+}
+```
+
+Also in `models.ts`:
+- Set `USE_FILLER_PROMPT = false` and change its comment to `// Stage 0: Transformers.js ignores Whisper prompts (no get_prompt_ids), so this stays off.`
+- Set `MODEL_BYTES_ESTIMATE = 140 * 1024 * 1024` and `APPROX_DOWNLOAD_MB = 140` with the comment `// Compact profile on WebGPU, from the Stage 0 file sizes; Task 14 sets the measured value.`
+- Add above `ORT_WASM`: `// vad-web bundles onnxruntime-web 1.30.0; Transformers.js uses its own runtime build.`
+
+- [ ] **Step 4: Thread the dtypes through protocol, worker, engine and client**
+
+`lib/speech/protocol.ts`: import `type Dtypes` from `./models.ts` and change the load message to `{ type: 'load'; backend: Backend; dtypes: Dtypes }`.
+
+`workers/analysis.worker.ts`: call `loadModels(data.backend, data.dtypes, (p) => post({ type: 'progress', ...p }))`.
+
+`lib/speech/engine.ts`: change the signature to `loadModels(backend: Backend, dtypes: Dtypes, onProgress: Progress)`, pass `dtype: dtypes.whisper` to the Whisper pipeline and `dtype: dtypes.embed` to the feature-extraction pipeline, and drop the `WHISPER_DTYPE` import. If the pipeline's `dtype` typing rejects `string`, cast at the call site only (e.g. `dtype: dtypes.embed as 'q8'`) and note it in the report.
+
+`lib/speech/client.ts`:
+
+```ts
+type Gpu = { requestAdapter(): Promise<{ features: { has(name: string): boolean } } | null> };
+
+async function pickBackend(): Promise<{ backend: Backend; f16: boolean }> {
+  const gpu = (navigator as Navigator & { gpu?: Gpu }).gpu;
+  try {
+    const adapter = gpu ? await gpu.requestAdapter() : null;
+    return adapter ? { backend: 'webgpu', f16: adapter.features.has('shader-f16') } : { backend: 'wasm', f16: false };
+  } catch {
+    return { backend: 'wasm', f16: false }; // requestAdapter can throw on blocklisted GPUs
+  }
+}
+
+export async function hasWebGPU(): Promise<boolean> {
+  return (await pickBackend()).backend === 'webgpu';
+}
+```
+
+In `loadModels`, add the parameter `profile: ProfileId = ACTIVE_PROFILE`, replace `backendUsed = await pickBackend();` with:
+
+```ts
+  const { backend, f16 } = await pickBackend();
+  backendUsed = backend;
+  loadedDtypes = dtypesFor(profile, backend, f16);
+```
+
+and post `{ type: 'load', backend, dtypes: loadedDtypes }`. Add `let loadedDtypes: Dtypes | null = null;` beside `backendUsed` and `export const currentDtypes = () => loadedDtypes;`. In `cancel()`, also set `loadedDtypes = null`.
+
+- [ ] **Step 5: Add a profile picker to the lab**
+
+In `app/lab/speech/LabClient.tsx`:
+- `import { PROFILES, type ProfileId } from '@/lib/speech/models';` and add `const [profile, setProfile] = useState<ProfileId>('compact');`.
+- In `load()`, call `engine.cancel()` first (so switching profile reloads), then `engine.loadModels(progress, profile)`. Keep the last progress total in a variable and include it, the profile and `JSON.stringify(engine.currentDtypes())` in the success status, e.g. `Loaded compact on webgpu in 9.1 s · 134.7 MB · {"whisper":…,"embed":"q8"} · crossOriginIsolated=true`.
+- Next to **Load models**, add:
+
+```tsx
+<select value={profile} onChange={(e) => setProfile(e.target.value as ProfileId)} className="rounded border-2 border-ink px-2 py-1 font-bold">
+  {(Object.keys(PROFILES) as ProfileId[]).map((id) => (
+    <option key={id} value={id}>
+      {id}
+    </option>
+  ))}
+</select>
+```
+
+The recorded audio stays in React state across profile switches (`run()` already transcribes a copy), so the same recording can be transcribed under both profiles.
+
+- [ ] **Step 6: Verify, then hand the comparison to the human**
+
+Run: `npm test && npm run typecheck && npm run build`
+Expected: PASS.
+
+Human step (Stage 0b, does not block Tasks 16–18): on `/lab/speech`, for 5 recordings, transcribe each under `quality` and `compact` and compare the transcripts word for word. Record the download size of each profile and the comparison in the Stage 0 results doc. Task 14 sets `ACTIVE_PROFILE` from it.
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add lib/speech/models.ts lib/speech/models.test.ts lib/speech/protocol.ts lib/speech/engine.ts lib/speech/client.ts workers/analysis.worker.ts app/lab/speech/LabClient.tsx
+git commit -m "feat(speech): quality and compact model profiles with lab A/B"
+```
+
+### Task 16: Hesitations and punctuation-only tokens
+
+**Files:**
+- Create: `lib/analysis/hesitation.ts`, `lib/analysis/hesitation.test.ts`
+- Modify: `lib/analysis/types.ts`, `lib/analysis/thresholds.ts`, `lib/analysis/fluency.ts`, `lib/analysis/fluency.test.ts`, `lib/analysis/rate.ts`, `lib/analysis/rate.test.ts`, `lib/analysis/analyse.ts`, `lib/analysis/analyse.test.ts`
+
+**Interfaces:**
+- Produces: `type Hesitation = { afterIndex: number; duration: number; before: string }`; `FluencyMetrics.hesitations: Hesitation[]`; `GradedResult.hesitations: Hesitation[]`; `HESITATION` thresholds; `hesitations(words: Word[], segments: Segment[], fillerIndexes: Set<number>): Hesitation[]`; `fluency(words: Word[], segments?: Segment[])`
+- Behaviour change: `perMinute` counts fillers plus hesitations; `analyseAnswer` drops punctuation-only tokens before counting words.
+
+- [ ] **Step 1: Types and thresholds**
+
+In `lib/analysis/types.ts` add:
+
+```ts
+/** Voiced time no transcribed word accounts for (a held "um" Whisper folded into a word), after words[afterIndex]. */
+export type Hesitation = { afterIndex: number; duration: number; before: string };
+```
+
+add `hesitations: Hesitation[]; // perMinute counts fillers and hesitations` to `FluencyMetrics`, and `hesitations: Hesitation[];` to `GradedResult` after `longPauses`.
+
+In `lib/analysis/thresholds.ts` add:
+
+```ts
+/** A word "should" take base + perChar × letters; voiced time beyond that, up to the next word, is a hesitation. */
+export const HESITATION = { minVoicedSec: 0.8, baseWordSec: 0.25, perCharSec: 0.07 } as const;
+```
+
+- [ ] **Step 2: Write the failing hesitation tests**
+
+`lib/analysis/hesitation.test.ts` (the first fixture is real Stage 0 data: run 1, 10.8–26.4 s):
+
+```ts
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { hesitations } from './hesitation.ts';
+import type { Segment, Word } from './types.ts';
+
+const words: Word[] = [
+  { text: 'This', start: 10.78, end: 11.84 },
+  { text: 'company', start: 11.84, end: 12.64 },
+  { text: 'called', start: 12.64, end: 13.1 },
+  { text: 'Zego', start: 13.1, end: 16 },
+  { text: 'Insurance.', start: 16, end: 17 },
+  { text: 'And', start: 17.24, end: 22.36 },
+  { text: 'the', start: 22.36, end: 22.56 },
+  { text: 'thing', start: 22.56, end: 22.88 },
+  { text: 'about', start: 22.88, end: 25.84 },
+  { text: 'Zegico', start: 25.84, end: 26.42 },
+];
+const segments: Segment[] = [
+  { start: 1.536, end: 15.072 },
+  { start: 15.456, end: 18.72 },
+  { start: 21.888, end: 24.48 },
+  { start: 24.48, end: 28.896 },
+];
+
+test('finds the held hesitations in a real Stage 0 recording', () => {
+  const h = hesitations(words, segments, new Set());
+  assert.deepEqual(h.map((x) => x.before), ['company called Zego', 'Zego Insurance And', 'the thing about']);
+  assert.deepEqual(h.map((x) => x.afterIndex), [3, 5, 8]);
+  assert.equal(Math.round(h[2].duration * 100) / 100, 2.36);
+});
+
+test('silence between words is a pause, not a hesitation', () => {
+  const w: Word[] = [
+    { text: 'a', start: 0, end: 0.3 },
+    { text: 'b', start: 5, end: 5.3 },
+  ];
+  assert.deepEqual(hesitations(w, [{ start: 0, end: 0.4 }, { start: 4.9, end: 5.4 }], new Set()), []);
+});
+
+test('a stretched filler word is not counted twice', () => {
+  const w: Word[] = [
+    { text: 'um', start: 0, end: 3 },
+    { text: 'next', start: 3, end: 3.3 },
+  ];
+  const seg = [{ start: 0, end: 3.5 }];
+  assert.equal(hesitations(w, seg, new Set([0])).length, 0);
+  assert.equal(hesitations(w, seg, new Set()).length, 1);
+});
+
+test('no VAD segments means no hesitations', () => {
+  assert.deepEqual(hesitations(words, [], new Set()), []);
+});
+```
+
+- [ ] **Step 3: Run tests to verify they fail**
+
+Run: `npm test`
+Expected: FAIL, cannot find `./hesitation.ts`.
+
+- [ ] **Step 4: Implement `hesitations()`**
+
+`lib/analysis/hesitation.ts`:
+
+```ts
+import { wordToken } from './text.ts';
+import { HESITATION } from './thresholds.ts';
+import type { Hesitation, Segment, Word } from './types.ts';
+
+const voicedBetween = (from: number, to: number, segments: Segment[]) =>
+  segments.reduce((sum, g) => sum + Math.max(0, Math.min(to, g.end) - Math.max(from, g.start)), 0);
+
+const clean = (w: Word) => w.text.trim().replace(/[.,!?;:]+$/, '');
+
+/**
+ * Whisper rarely writes down a natural "um"; it stretches the word before it instead (Stage 0).
+ * After each word, the time beyond its expected length up to the next word is checked against VAD:
+ * voiced time there is a hesitation; silence is a pause and belongs to pacing.
+ */
+export function hesitations(words: Word[], segments: Segment[], fillerIndexes: Set<number>): Hesitation[] {
+  if (segments.length === 0) return [];
+  const out: Hesitation[] = [];
+  for (let i = 0; i < words.length; i++) {
+    if (fillerIndexes.has(i)) continue; // already counted as a filler
+    const w = words[i];
+    const expectedEnd = w.start + HESITATION.baseWordSec + HESITATION.perCharSec * wordToken(w.text).length;
+    const spanEnd = i + 1 < words.length ? words[i + 1].start : w.end;
+    if (spanEnd <= expectedEnd) continue;
+    const voiced = voicedBetween(expectedEnd, spanEnd, segments);
+    if (voiced >= HESITATION.minVoicedSec) {
+      out.push({ afterIndex: i, duration: voiced, before: words.slice(Math.max(0, i - 2), i + 1).map(clean).join(' ') });
+    }
+  }
+  return out;
+}
+```
+
+- [ ] **Step 5: Run the hesitation tests**
+
+Run: `node --test --experimental-strip-types lib/analysis/hesitation.test.ts`
+Expected: the four hesitation tests PASS. (Other suites may now fail to typecheck against the new required fields; Steps 6–8 fix them.)
+
+- [ ] **Step 6: Fold hesitations into `fluency()`**
+
+In `lib/analysis/fluency.ts`:
+- import `{ hesitations }` from `./hesitation.ts` and `type Segment` from `./types.ts`;
+- change the signature to `export function fluency(words: Word[], segments: Segment[] = []): FluencyMetrics`;
+- after the loop, add `const held = hesitations(words, segments, new Set(indexes));`;
+- compute `perMinute: (total + held.length) / (Math.max(span, 1) / 60)` and add `hesitations: held` to the returned object.
+
+Add to `lib/analysis/fluency.test.ts`:
+
+```ts
+test('hesitations count toward the per-minute rate', () => {
+  const words = [
+    { text: 'so', start: 0, end: 0.3 },
+    { text: 'then', start: 3, end: 3.3 },
+  ];
+  const m = fluency(words, [{ start: 0, end: 3.5 }]);
+  assert.equal(m.total, 0); // the first sentence-starting "so" is not a filler
+  assert.equal(m.hesitations.length, 1);
+  assert.equal(Math.round(m.perMinute), 18); // 1 per 3.3 s
+});
+```
+
+- [ ] **Step 7: Report hesitations in `rateFluency()`**
+
+Replace `rateFluency` in `lib/analysis/rate.ts` with:
+
+```ts
+export function rateFluency(m: FluencyMetrics): Dimension {
+  const rating: Rating = m.perMinute < FLUENCY.strongBelow ? 'strong' : m.perMinute <= FLUENCY.goodUpTo ? 'good' : 'needs-work';
+  const lines: string[] = [];
+  if (m.counts.length > 0) {
+    const top = m.counts.slice(0, 3).map((c) => `'${c.filler}' ${c.count} ${c.count === 1 ? 'time' : 'times'}`);
+    lines.push(`you said ${top.join(', ')}`);
+  }
+  if (m.hesitations.length > 0) {
+    const n = m.hesitations.length;
+    const longest = m.hesitations.reduce((a, h) => (h.duration > a.duration ? h : a));
+    lines.push(`${n} ${n === 1 ? 'hesitation' : 'hesitations'}, longest after '${longest.before}…'`);
+  }
+  if (lines.length === 0) lines.push('no filler words detected');
+  return { rating, lines };
+}
+```
+
+In `lib/analysis/rate.test.ts`, add `hesitations: []` to the object the `fl` helper passes to `rateFluency`, and add:
+
+```ts
+test('fluency reports hesitations with the longest one', () => {
+  const d = rateFluency({
+    counts: [],
+    total: 0,
+    perMinute: 4,
+    indexes: [],
+    hesitations: [
+      { afterIndex: 3, duration: 1.2, before: 'company called Zego' },
+      { afterIndex: 8, duration: 2.4, before: 'the thing about' },
+    ],
+  });
+  assert.equal(d.rating, 'good');
+  assert.deepEqual(d.lines, ["2 hesitations, longest after 'the thing about…'"]);
+});
+
+test('fluency lists fillers and hesitations together', () => {
+  const d = rateFluency({
+    counts: [{ filler: 'like', count: 2 }],
+    total: 2,
+    perMinute: 2.5,
+    indexes: [4, 9],
+    hesitations: [{ afterIndex: 3, duration: 1.2, before: 'company called Zego' }],
+  });
+  assert.deepEqual(d.lines, ["you said 'like' 2 times", "1 hesitation, longest after 'company called Zego…'"]);
+});
+```
+
+- [ ] **Step 8: Clean tokens and pass segments in `analyseAnswer()`**
+
+In `lib/analysis/analyse.ts`, replace the start of `analyseAnswer`'s body (the destructuring, the `MIN_WORDS` check and `const f = fluency(words);`) with:
+
+```ts
+  const { segments, tips, embed } = input;
+  // Whisper emits punctuation-only tokens such as "..."; they are not words.
+  const words = input.words.filter((w) => /[a-z0-9]/i.test(w.text));
+  if (words.length < MIN_WORDS) return { graded: false, reason: 'too-short', words };
+  const f = fluency(words, segments);
+```
+
+and add `hesitations: f.hesitations,` after `longPauses: p.longPauses,` in the returned object.
+
+Add to `lib/analysis/analyse.test.ts`:
+
+```ts
+test('punctuation-only tokens are not counted as words', async () => {
+  const words = [
+    ...wordsFromText('one two three four five six seven eight nine ten eleven twelve thirteen fourteen'),
+    { text: '...', start: 9, end: 9.1 },
+  ];
+  const r = await analyseAnswer({ words, segments: [], tips, embed });
+  assert.equal(r.graded, false); // 14 real words is under the 15-word minimum
+  assert.ok(r.words.every((w) => w.text !== '...'));
+});
+```
+
+and in the existing "a full answer returns three dimensions" test, after the `englishWarning` assertion, add `assert.deepEqual(r.hesitations, []);`.
+
+- [ ] **Step 9: Run tests and typecheck**
+
+Run: `npm test && npm run typecheck`
+Expected: PASS.
+
+- [ ] **Step 10: Commit**
+
+```bash
+git add lib/analysis
+git commit -m "feat(analysis): detect hesitations Whisper folds into words; drop punctuation tokens"
+```
+
+### Task 17: Live 16 kHz capture and chunking
+
+**Files:**
+- Create: `lib/speech/pcm.ts`, `lib/speech/pcm.test.ts`, `lib/speech/chunker.ts`, `lib/speech/chunker.test.ts`
+- Modify: `lib/speech/useRecorder.ts`
+
+**Interfaces:**
+- Consumes: `SAMPLE_RATE`, `rms` (`lib/speech/audio.ts`)
+- Produces: `resampleTo16k(input: Float32Array, fromRate: number): Float32Array`; `CHUNK`; `quietestPoint(samples, from, to, win): number`; `class Chunker { constructor(emit: (audio: Float32Array, offsetSec: number) => void); push(samples: Float32Array): void; flush(): void }`; `useRecorder` option `onChunk?: (audio: Float32Array, offsetSec: number) => void` — called with ~25 s 16 kHz chunks during recording and once with the remainder when recording stops (before `onStop`/`onLost`), never after `discard()`.
+
+Note: Node's `--experimental-strip-types` cannot run TypeScript parameter properties (`constructor(private x)`); declare fields explicitly.
+
+- [ ] **Step 1: Write the failing tests**
+
+`lib/speech/pcm.test.ts`:
+
+```ts
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { resampleTo16k } from './pcm.ts';
+
+test('48 kHz to 16 kHz averages each group of three samples', () => {
+  assert.deepEqual([...resampleTo16k(new Float32Array([1, 1, 1, 4, 4, 4]), 48000)], [1, 4]);
+});
+
+test('output length follows the rate ratio', () => {
+  assert.equal(resampleTo16k(new Float32Array(44100), 44100).length, 16000);
+});
+
+test('16 kHz input is copied, not shared', () => {
+  const input = new Float32Array([0.1, 0.2]);
+  const out = resampleTo16k(input, 16000);
+  assert.deepEqual([...out], [...input]);
+  assert.notEqual(out, input);
+});
+```
+
+`lib/speech/chunker.test.ts`:
+
+```ts
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { Chunker, quietestPoint } from './chunker.ts';
+
+const SR = 16000;
+const tone = (sec: number) => Float32Array.from({ length: Math.round(sec * SR) }, (_, i) => 0.5 * Math.sin(i / 5));
+const silence = (sec: number) => new Float32Array(Math.round(sec * SR));
+
+test('quietestPoint lands in the silent window', () => {
+  const s = new Float32Array([...tone(1), ...silence(0.1), ...tone(1)]);
+  const at = quietestPoint(s, 0, s.length, 800);
+  assert.ok(at > SR && at < 1.1 * SR);
+});
+
+test('a long recording is cut at the quiet spot before 25 s, with offsets that add up', () => {
+  const chunks: { sec: number; offsetSec: number }[] = [];
+  const c = new Chunker((audio, offsetSec) => chunks.push({ sec: audio.length / SR, offsetSec }));
+  c.push(tone(23.5));
+  c.push(silence(0.2));
+  c.push(tone(2)); // 25.7 s buffered, quiet at 23.5–23.7 s
+  assert.equal(chunks.length, 1);
+  assert.equal(chunks[0].offsetSec, 0);
+  assert.ok(chunks[0].sec > 23.5 && chunks[0].sec < 23.7);
+  c.flush();
+  assert.equal(chunks.length, 2);
+  assert.ok(Math.abs(chunks[1].offsetSec - chunks[0].sec) < 1e-9);
+  assert.ok(Math.abs(chunks[0].sec + chunks[1].sec - 25.7) < 0.001);
+});
+
+test('flush with nothing buffered emits nothing', () => {
+  let calls = 0;
+  new Chunker(() => calls++).flush();
+  assert.equal(calls, 0);
+});
+```
+
+- [ ] **Step 2: Run tests to verify they fail**
+
+Run: `npm test`
+Expected: FAIL, cannot find `./pcm.ts` / `./chunker.ts`.
+
+- [ ] **Step 3: Implement resampling and chunking**
+
+`lib/speech/pcm.ts`:
+
+```ts
+import { SAMPLE_RATE } from './audio.ts';
+
+/** Resamples to 16 kHz, averaging the source samples behind each output sample (a cheap low-pass, fine for speech). */
+export function resampleTo16k(input: Float32Array, fromRate: number): Float32Array {
+  if (fromRate === SAMPLE_RATE) return input.slice();
+  const ratio = fromRate / SAMPLE_RATE;
+  const out = new Float32Array(Math.floor(input.length / ratio));
+  for (let i = 0; i < out.length; i++) {
+    const a = Math.floor(i * ratio);
+    const b = Math.min(input.length, Math.floor((i + 1) * ratio));
+    let sum = 0;
+    for (let j = a; j < b; j++) sum += input[j];
+    out[i] = b > a ? sum / (b - a) : input[a];
+  }
+  return out;
+}
+```
+
+`lib/speech/chunker.ts`:
+
+```ts
+import { SAMPLE_RATE, rms } from './audio.ts';
+
+/** Whisper takes up to 30 s; cut at ~25 s, at the quietest point of the last 3 s, so no word is split. */
+export const CHUNK = { targetSec: 25, searchSec: 3, windowSec: 0.05 } as const;
+
+/** Middle of the quietest `win`-sample window in samples[from, to). */
+export function quietestPoint(samples: Float32Array, from: number, to: number, win: number): number {
+  let best = to;
+  let bestLevel = Infinity;
+  for (let i = Math.max(0, from); i + win <= to; i += win) {
+    const level = rms(samples.subarray(i, i + win));
+    if (level < bestLevel) {
+      bestLevel = level;
+      best = i + Math.floor(win / 2);
+    }
+  }
+  return best;
+}
+
+/** Buffers 16 kHz audio and emits chunks with their start time in the recording. */
+export class Chunker {
+  private readonly emit: (audio: Float32Array, offsetSec: number) => void;
+  private parts: Float32Array[] = [];
+  private length = 0;
+  private offsetSec = 0;
+
+  constructor(emit: (audio: Float32Array, offsetSec: number) => void) {
+    this.emit = emit;
+  }
+
+  push(samples: Float32Array): void {
+    this.parts.push(samples);
+    this.length += samples.length;
+    if (this.length >= CHUNK.targetSec * SAMPLE_RATE) this.cut();
+  }
+
+  /** Emits whatever is buffered: the end of the recording. */
+  flush(): void {
+    if (this.length === 0) return;
+    const all = this.drain();
+    this.emit(all, this.offsetSec);
+    this.offsetSec += all.length / SAMPLE_RATE;
+  }
+
+  private cut(): void {
+    const all = this.drain();
+    const win = Math.round(CHUNK.windowSec * SAMPLE_RATE);
+    const at = quietestPoint(all, all.length - CHUNK.searchSec * SAMPLE_RATE, all.length, win);
+    this.emit(all.slice(0, at), this.offsetSec);
+    this.offsetSec += at / SAMPLE_RATE;
+    const rest = all.slice(at);
+    this.parts = rest.length ? [rest] : [];
+    this.length = rest.length;
+  }
+
+  private drain(): Float32Array {
+    const all = new Float32Array(this.length);
+    let o = 0;
+    for (const p of this.parts) {
+      all.set(p, o);
+      o += p.length;
+    }
+    this.parts = [];
+    this.length = 0;
+    return all;
+  }
+}
+```
+
+- [ ] **Step 4: Run tests**
+
+Run: `npm test`
+Expected: PASS.
+
+- [ ] **Step 5: Tap live audio in `useRecorder`**
+
+Read `lib/speech/useRecorder.ts` as it is now (it has a `session` counter ref, a `starting` ref and try/catch/finally in `start()` from earlier fix rounds; keep all of that). Then:
+
+1. Imports: add `import { Chunker } from './chunker.ts';` and `import { resampleTo16k } from './pcm.ts';`.
+2. `Options`: add `onChunk?: (audio: Float32Array, offsetSec: number) => void; // ~25 s 16 kHz chunks while recording, then the remainder`. Include `onChunk` in the `handlers` ref alongside `onStop` and `onLost`.
+3. `Live`: add `chunker: Chunker`.
+4. Above the hook, add the worklet source (an inline module, so no separate asset needs bundling):
+
+```ts
+// Batches 128-sample render quanta into 4096-sample messages.
+const PCM_TAP = `class PcmTap extends AudioWorkletProcessor{constructor(){super();this.b=new Float32Array(4096);this.n=0}process(inputs){const c=inputs[0]&&inputs[0][0];if(c){for(let k=0;k<c.length;k++){this.b[this.n++]=c[k];if(this.n===4096){this.port.postMessage(this.b.slice(0));this.n=0}}}return true}}registerProcessor('pcm-tap',PcmTap)`;
+let tapUrl: string | null = null;
+const tapModuleUrl = () => (tapUrl ??= URL.createObjectURL(new Blob([PCM_TAP], { type: 'text/javascript' })));
+```
+
+5. In `start()`, keep the `MediaStreamAudioSourceNode` in a variable (`const source = ctx.createMediaStreamSource(stream); source.connect(analyser);`). After the session counter value for this session (`mine`) is assigned, create the chunker and the tap:
+
+```ts
+    const chunker = new Chunker((audio, offsetSec) => {
+      if (mine === session.current) handlers.current.onChunk?.(audio, offsetSec);
+    });
+    await ctx.audioWorklet.addModule(tapModuleUrl());
+    const tap = new AudioWorkletNode(ctx, 'pcm-tap');
+    tap.port.onmessage = (e: MessageEvent<Float32Array>) => {
+      if (mine === session.current) chunker.push(resampleTo16k(e.data, ctx.sampleRate));
+    };
+    const mute = ctx.createGain();
+    mute.gain.value = 0; // the tap must be pulled by the graph, but nothing should be audible
+    source.connect(tap);
+    tap.connect(mute).connect(ctx.destination);
+```
+
+   and store `chunker` on the `Live` object. Do this before `recorder.start(250)` so no audio is missed, and inside the existing try block so a failure tears down as before.
+6. In `recorder.onstop`, as the first statement (before `teardown()` and before the decode `await`), add `if (mine === session.current) l.chunker.flush();` so the remainder reaches `onChunk` before `onStop`/`onLost` fire.
+
+- [ ] **Step 6: Typecheck and test**
+
+Run: `npm run typecheck && npm test`
+Expected: PASS. (The hook is exercised in the browser in Task 18.)
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add lib/speech/pcm.ts lib/speech/pcm.test.ts lib/speech/chunker.ts lib/speech/chunker.test.ts lib/speech/useRecorder.ts
+git commit -m "feat(speech): stream 16 kHz chunks from the recorder"
+```
+
+### Task 18: Incremental analysis sessions
+
+**Files:**
+- Create: `lib/analysis/merge.ts`, `lib/analysis/merge.test.ts`
+- Modify: `lib/speech/protocol.ts`, `workers/analysis.worker.ts`, `lib/speech/client.ts`, `app/lab/speech/LabClient.tsx`
+
+**Interfaces:**
+- Consumes: `analyseAnswer` (Task 8, updated in Task 16), `useRecorder`'s `onChunk` (Task 17)
+- Produces: `shiftTimes<T extends { start: number; end: number }>(items: T[], offsetSec: number): T[]`, `mergeSegments(segments: Segment[], joinGapSec?: number): Segment[]`; messages `chunk`, `finish`, `reset` replacing `analyse`; `client.startSession(): AnalysisSession` with `push(audio, offsetSec): void`, `finish(tips, onStep): Promise<Result>`, `reset(): void`
+- Removes: `client.analyse()` and the worker's `analyse` message (nothing uses them; Task 13 uses sessions).
+
+- [ ] **Step 1: Write the failing tests**
+
+`lib/analysis/merge.test.ts`:
+
+```ts
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { mergeSegments, shiftTimes } from './merge.ts';
+
+test('shiftTimes moves start and end and keeps other fields', () => {
+  assert.deepEqual(shiftTimes([{ text: 'hi', start: 1, end: 1.5 }], 25), [{ text: 'hi', start: 26, end: 26.5 }]);
+});
+
+test('mergeSegments sorts and joins segments split by a chunk cut', () => {
+  const merged = mergeSegments([
+    { start: 25.02, end: 30 },
+    { start: 10, end: 24.98 },
+    { start: 40, end: 41 },
+  ]);
+  assert.deepEqual(merged, [
+    { start: 10, end: 30 },
+    { start: 40, end: 41 },
+  ]);
+});
+
+test('mergeSegments keeps real gaps', () => {
+  assert.equal(mergeSegments([{ start: 0, end: 1 }, { start: 3.5, end: 4 }]).length, 2);
+});
+```
+
+- [ ] **Step 2: Run tests to verify they fail**
+
+Run: `npm test`
+Expected: FAIL, cannot find `./merge.ts`.
+
+- [ ] **Step 3: Implement the merge helpers**
+
+`lib/analysis/merge.ts`:
+
+```ts
+import type { Segment } from './types.ts';
+
+/** Moves chunk-relative times to recording time. */
+export function shiftTimes<T extends { start: number; end: number }>(items: T[], offsetSec: number): T[] {
+  return items.map((it) => ({ ...it, start: it.start + offsetSec, end: it.end + offsetSec }));
+}
+
+/** Sorts segments and joins those that touch or nearly touch: a chunk cut splits one stretch of speech in two. */
+export function mergeSegments(segments: Segment[], joinGapSec = 0.1): Segment[] {
+  const out: Segment[] = [];
+  for (const s of [...segments].sort((a, b) => a.start - b.start)) {
+    const last = out.at(-1);
+    if (last && s.start - last.end <= joinGapSec) last.end = Math.max(last.end, s.end);
+    else out.push({ ...s });
+  }
+  return out;
+}
+```
+
+- [ ] **Step 4: Run tests**
+
+Run: `npm test`
+Expected: PASS.
+
+- [ ] **Step 5: Protocol**
+
+In `lib/speech/protocol.ts`, replace the `analyse` member of `ToWorker` with:
+
+```ts
+  | { type: 'chunk'; session: number; offsetSec: number; audio: Float32Array }
+  | { type: 'finish'; id: number; session: number; tips: Tips }
+  | { type: 'reset' };
+```
+
+and add to `FromWorker`: `| { type: 'chunk-done'; session: number; offsetSec: number; ms: number }`.
+
+- [ ] **Step 6: Worker sessions**
+
+In `workers/analysis.worker.ts`, add imports `import { mergeSegments, shiftTimes } from '../lib/analysis/merge.ts';` and `import type { Segment, Word } from '../lib/analysis/types.ts';`, then above `self.onmessage`:
+
+```ts
+// One recording at a time. Chunks are transcribed in arrival order while the user is still talking.
+type Session = { id: number; words: Word[]; segments: Segment[]; queue: Promise<void>; error: string | null };
+const fresh = (id: number): Session => ({ id, words: [], segments: [], queue: Promise.resolve(), error: null });
+let current = fresh(-1);
+const sessionFor = (id: number) => (current.id === id ? current : (current = fresh(id)));
+```
+
+Inside `self.onmessage`, after the `load` branch and before `const { id } = data;`, add:
+
+```ts
+  if (data.type === 'reset') {
+    current = fresh(-1);
+    return;
+  }
+
+  if (data.type === 'chunk') {
+    const s = sessionFor(data.session);
+    const { audio, offsetSec } = data;
+    s.queue = s.queue
+      .then(async () => {
+        if (current !== s || s.error) return;
+        const t0 = performance.now();
+        const words = await transcribe(audio, USE_FILLER_PROMPT);
+        const segments = await detectSpeech(audio);
+        if (current !== s) return; // reset while this chunk was running
+        s.words.push(...shiftTimes(words, offsetSec));
+        s.segments.push(...shiftTimes(segments, offsetSec));
+        post({ type: 'chunk-done', session: s.id, offsetSec, ms: performance.now() - t0 });
+      })
+      .catch((e) => {
+        s.error = String(e);
+      });
+    return;
+  }
+```
+
+and replace the whole-recording `analyse` branch (the block from `post({ type: 'step', id, step: 'transcribing' });` through `post({ type: 'analysed', id, result });`) with:
+
+```ts
+    if (data.type === 'finish') {
+      const s = sessionFor(data.session);
+      post({ type: 'step', id, step: 'transcribing' });
+      await s.queue; // the last chunk
+      if (s.error) throw new Error(s.error);
+      post({ type: 'step', id, step: 'pauses' });
+      const segments = mergeSegments(s.segments);
+      post({ type: 'step', id, step: 'content' });
+      const result = await analyseAnswer({ words: s.words, segments, tips: data.tips, embed });
+      if (current === s) current = fresh(-1);
+      post({ type: 'analysed', id, result });
+      return;
+    }
+```
+
+Keep the `transcribe` branch (the lab uses it) and the existing error handling.
+
+- [ ] **Step 7: Client sessions**
+
+In `lib/speech/client.ts`:
+- delete `analyse()`;
+- in `request()`, replace `getWorker().postMessage(msg, [msg.audio.buffer as ArrayBuffer]);` with:
+
+```ts
+    getWorker().postMessage(msg, 'audio' in msg ? [msg.audio.buffer as ArrayBuffer] : []);
+```
+
+- add:
+
+```ts
+/** One recording's analysis: push chunks while recording, then finish once to grade. */
+export type AnalysisSession = {
+  push(audio: Float32Array, offsetSec: number): void;
+  finish(tips: Tips, onStep: (s: AnalysisStep) => void): Promise<Result>;
+  reset(): void; // discard everything pushed so far
+};
+
+let nextSession = 1;
+
+export function startSession(): AnalysisSession {
+  const session = nextSession++;
+  return {
+    push: (audio, offsetSec) =>
+      getWorker().postMessage({ type: 'chunk', session, offsetSec, audio } satisfies ToWorker, [audio.buffer as ArrayBuffer]),
+    finish: (tips, onStep) =>
+      request({ type: 'finish', id: nextId++, session, tips }, (m) => (m.type === 'analysed' ? m.result : undefined), onStep),
+    reset: () => worker?.postMessage({ type: 'reset' } satisfies ToWorker),
+  };
+}
+```
+
+- [ ] **Step 8: Streaming check on the lab bench**
+
+In `app/lab/speech/LabClient.tsx`:
+- import `useRef` from React (beside `useState`) and `import { seedContent } from '@/lib/content/seed';`;
+- `const TIPS = seedContent.questions.find((q) => q.id === 'FE-03')!.tips;` at module level;
+- state `const [streaming, setStreaming] = useState(false);`, `const [streamResult, setStreamResult] = useState<{ ms: number; result: unknown } | null>(null);`, and `const session = useRef<engine.AnalysisSession | null>(null);`;
+- pass `onChunk: (audio, offsetSec) => session.current?.push(audio, offsetSec)` to `useRecorder`, and in both `onStop` and `onLost`, after `setAudio(r.audio)`, call `void finishStream()`;
+- add:
+
+```tsx
+  const finishStream = async () => {
+    const s = session.current;
+    session.current = null;
+    if (!s) return;
+    const t0 = performance.now();
+    setStatus('Analysing…');
+    try {
+      const result = await s.finish(TIPS, (step) => setStatus(`Analysing: ${step}`));
+      setStreamResult({ ms: performance.now() - t0, result });
+      setStatus('Ready');
+    } catch (e) {
+      setStatus(`Analysis failed: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  };
+
+  const toggleRecording = async () => {
+    if (recorder.active) return recorder.stop();
+    if (streaming) {
+      if (!engine.isLoaded()) return setStatus('Load models first');
+      session.current = engine.startSession();
+    }
+    await recorder.start();
+  };
+```
+
+- point the Record button's `onClick` at `toggleRecording`, add a checkbox labelled **Streaming analysis (FE-03 rubric)** bound to `streaming`, and render, when `streamResult` is set:
+
+```tsx
+<section className="card-surface bg-white p-4">
+  <p className="font-bold">Stop → result {(streamResult.ms / 1000).toFixed(1)} s</p>
+  <pre className="mt-2 overflow-x-auto text-xs">{JSON.stringify(streamResult.result, null, 1)}</pre>
+</section>
+```
+
+- [ ] **Step 9: Verify**
+
+Run: `npm test && npm run typecheck && npm run build`
+Expected: PASS.
+
+Human step (Stage 0b): on `/lab/speech`, load models, tick **Streaming analysis**, record a 3-minute answer, stop. Pass = "Stop → result" under 15 s on the WebGPU laptop. Record the number in the Stage 0 results doc.
+
+- [ ] **Step 10: Commit**
+
+```bash
+git add lib/analysis/merge.ts lib/analysis/merge.test.ts lib/speech/protocol.ts workers/analysis.worker.ts lib/speech/client.ts app/lab/speech/LabClient.tsx
+git commit -m "feat(speech): analyse in chunks while recording"
+```
 
 ---
 
