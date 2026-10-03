@@ -8,8 +8,8 @@ import { QuestionCard } from './QuestionCard';
 import { TipsPanel } from './TipsPanel';
 
 export const shuffleStyles = [
-  { id: 'riffle', name: 'Riffle', duration: 4000 },
-  { id: 'fan', name: 'Fan', duration: 4000 },
+  { id: 'riffle', name: 'Riffle', duration: 3000 },
+  { id: 'fan', name: 'Fan', duration: 3200 },
   { id: 'instant', name: 'Instant', duration: 250 },
 ] as const;
 type ShuffleStyleId = (typeof shuffleStyles)[number]['id'];
@@ -29,7 +29,7 @@ function pileAnimation(style: ShuffleStyleId, i: number): TargetAndTransition {
       x: [0, side * 120, side * 36, 0],
       y: [rest.y, rest.y - 14, rest.y - 4, rest.y],
       rotate: [0, side * 11, -side * 4, 0],
-      transition: { duration: 1.8, repeat: 1, delay: i * 0.08, times: [0, 0.35, 0.7, 1], ease: 'easeInOut' },
+      transition: { duration: 0.9, repeat: 2, delay: i * 0.05, times: [0, 0.35, 0.7, 1], ease: 'easeInOut' },
     };
   }
   if (style === 'fan') {
@@ -39,7 +39,7 @@ function pileAnimation(style: ShuffleStyleId, i: number): TargetAndTransition {
       x: [0, angle * 4, angle * 4, 0],
       y: [rest.y, rest.y - 10, rest.y - 10, rest.y],
       rotate: [0, angle, angle, 0],
-      transition: { duration: 1.8, repeat: 1, delay: i * 0.08, times: [0, 0.4, 0.65, 1], ease: 'easeInOut' },
+      transition: { duration: 1.0, repeat: 2, delay: i * 0.03, times: [0, 0.4, 0.65, 1], ease: 'easeInOut' },
     };
   }
   return { ...rest, opacity: [1, 0.5, 1], transition: { duration: 0.25 } };
