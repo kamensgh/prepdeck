@@ -3,16 +3,24 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { RECORDING } from '../analysis/thresholds.ts';
 import { SAMPLE_RATE, decodeTo16kMono, rms } from './audio.ts';
+import { Chunker } from './chunker.ts';
+import { resampleTo16k } from './pcm.ts';
 
 export type Recording = { audio: Float32Array; url: string; durationSec: number };
 
-type Live = { stream: MediaStream; recorder: MediaRecorder; ctx: AudioContext; raf: number; clock: number; lost: boolean };
+type Live = { stream: MediaStream; recorder: MediaRecorder; ctx: AudioContext; raf: number; clock: number; lost: boolean; chunker: Chunker };
 type Options = {
   onStop: (r: Recording) => void; // normal stop or the 3:00 limit
   onLost: (r: Recording) => void; // mic unplugged mid-recording
+  onChunk?: (audio: Float32Array, offsetSec: number) => void; // ~25 s 16 kHz chunks while recording, then the remainder
 };
 
-export function useRecorder({ onStop, onLost }: Options) {
+// Batches 128-sample render quanta into 4096-sample messages.
+const PCM_TAP = `class PcmTap extends AudioWorkletProcessor{constructor(){super();this.b=new Float32Array(4096);this.n=0}process(inputs){const c=inputs[0]&&inputs[0][0];if(c){for(let k=0;k<c.length;k++){this.b[this.n++]=c[k];if(this.n===4096){this.port.postMessage(this.b.slice(0));this.n=0}}}return true}}registerProcessor('pcm-tap',PcmTap)`;
+let tapUrl: string | null = null;
+const tapModuleUrl = () => (tapUrl ??= URL.createObjectURL(new Blob([PCM_TAP], { type: 'text/javascript' })));
+
+export function useRecorder({ onStop, onLost, onChunk }: Options) {
   const [active, setActive] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [levels, setLevels] = useState<number[]>([]);
@@ -21,8 +29,8 @@ export function useRecorder({ onStop, onLost }: Options) {
   const live = useRef<Live | null>(null);
   const starting = useRef(false);
   const session = useRef(0);
-  const handlers = useRef({ onStop, onLost });
-  handlers.current = { onStop, onLost };
+  const handlers = useRef({ onStop, onLost, onChunk });
+  handlers.current = { onStop, onLost, onChunk };
 
   const teardown = useCallback(() => {
     const l = live.current;
@@ -44,15 +52,30 @@ export function useRecorder({ onStop, onLost }: Options) {
       const ctx = new AudioContext();
       const analyser = ctx.createAnalyser();
       analyser.fftSize = 2048;
-      ctx.createMediaStreamSource(stream).connect(analyser);
+      const source = ctx.createMediaStreamSource(stream);
+      source.connect(analyser);
       const buf = new Float32Array(analyser.fftSize);
       const chunks: Blob[] = [];
       const startedAt = performance.now();
       let lastSound = startedAt;
       let lastPaint = 0;
-      const l: Live = { stream, recorder, ctx, raf: 0, clock: 0, lost: false };
-      live.current = l;
       const mine = ++session.current;
+
+      const chunker = new Chunker((audio, offsetSec) => {
+        if (mine === session.current) handlers.current.onChunk?.(audio, offsetSec);
+      });
+      await ctx.audioWorklet.addModule(tapModuleUrl());
+      const tap = new AudioWorkletNode(ctx, 'pcm-tap');
+      tap.port.onmessage = (e: MessageEvent<Float32Array>) => {
+        if (mine === session.current) chunker.push(resampleTo16k(e.data, ctx.sampleRate));
+      };
+      const mute = ctx.createGain();
+      mute.gain.value = 0; // the tap must be pulled by the graph, but nothing should be audible
+      source.connect(tap);
+      tap.connect(mute).connect(ctx.destination);
+
+      const l: Live = { stream, recorder, ctx, raf: 0, clock: 0, lost: false, chunker };
+      live.current = l;
 
       // Waveform and flat-mic check: animation frames (paused in hidden tabs, which is fine).
       const frame = () => {
@@ -77,6 +100,7 @@ export function useRecorder({ onStop, onLost }: Options) {
       recorder.ondataavailable = (e) => chunks.push(e.data);
       recorder.onstop = async () => {
         const lost = l.lost;
+        if (mine === session.current) l.chunker.flush();
         teardown();
         const blob = new Blob(chunks, { type: recorder.mimeType });
         const audio = await decodeTo16kMono(blob);
