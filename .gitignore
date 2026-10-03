@@ -10,3 +10,4 @@ studio/dist
 question-bank.ndjson
 .vercel
 .claude/worktrees/
+.superpowers/
