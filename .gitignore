@@ -8,3 +8,4 @@ next-env.d.ts
 studio/node_modules
 studio/dist
 question-bank.ndjson
+.vercel
