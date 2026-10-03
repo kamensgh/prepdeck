@@ -12,7 +12,7 @@ Goals:
 2. Cost nothing per answer to run, with no audio or transcript ever leaving the device.
 3. Keep the v1 deck untouched: analysis is an opt-in overlay, never a required step.
 
-The grading rubric comes from each question's existing `tips.hit` and `tips.avoid`, so reviewers keep controlling grading through the content they already edit in Sanity.
+The grading rubric comes from each question's existing `tips.hit`, so reviewers keep controlling grading through the content they already edit in Sanity.
 
 ## Decisions and scope
 
@@ -76,7 +76,7 @@ Mic → Recorder ──16 kHz audio──▶ Analysis worker (background thread)
 | MiniLM (~23 MB) | Embeds rubric points and transcript windows | → vectors for `content()` |
 | `lib/analysis/fluency.ts` | Counts fillers with context rules ("it's, like, slow" counts; "I like React" doesn't) and hesitations (`hesitation.ts`) | `fluency(words, segments)` |
 | `lib/analysis/pacing.ts` | Long pauses, longest pause + preceding words, rate, length | `pacing(segments, words)` |
-| `lib/analysis/content.ts` | Splits `tips.hit` into points, marks covered or missed, flags `tips.avoid` matches | `content(words, tips, embed)` |
+| `lib/analysis/content.ts` | Splits `tips.hit` into points, marks covered or missed | `content(words, tips, embed)` |
 | `lib/analysis/rate.ts` | Applies thresholds, writes breakdown lines | `rate(metrics) → Result` |
 
 Models load through Transformers.js (ONNX), using WebGPU where available and WASM otherwise. They download from Hugging Face's CDN and are stored in the browser cache; audio is never sent anywhere. Multi-threaded WASM needs cross-origin isolation (COOP/COEP headers), set only on the practice route so other pages and embeds are unaffected.
@@ -98,7 +98,7 @@ Definitions:
 - **Hesitation:** 0.8 s or more of voiced time after a word, beyond 0.25 s + 0.07 s per letter, before the next word. Silence in that span is a pause instead.
 - **Long pause:** 2.5 s or more of silence mid-answer. Silence before the first word is thinking time; up to 5 s is free, beyond that it counts as one long pause.
 - **Normal rate:** 110–170 words per minute. **Normal length:** 30 s to 2:30.
-- **Avoid match:** any `tips.avoid` match drops Content one level and adds "⚠ sounded like: '…'".
+- **Avoid tips are not graded** (decided 2026-10-04): sentence embeddings can't see negation, so in the golden set strong answers that covered the avoid topic correctly were downgraded. The "Avoid" tip stays visible in the results' tips panel.
 - **Thin rubric:** when `tips.hit` yields fewer than 3 points (common for behavioural questions), Content is graded on structure instead: situation and task, action, result.
 - **Not graded:** under 15 words detected shows "We couldn't hear enough to grade. Check your mic and try again" with no ratings.
 
@@ -142,7 +142,7 @@ v2 ships in three stages, each releasable on its own; Stage 0 must pass before S
 
 **Automated tests**, using the existing `node:test` style:
 
-- Unit tests for `fluency`, `pacing`, `content` and `rate` with hand-written word and segment fixtures, covering every threshold boundary, the "like" context rules, the thinking-time allowance, the avoid downgrade and the not-graded case.
+- Unit tests for `fluency`, `pacing`, `content` and `rate` with hand-written word and segment fixtures, covering every threshold boundary, the "like" context rules, the thinking-time allowance, and the not-graded case.
 - A golden set of 10 seed questions × 3 answers (strong, partial, off-topic) with expected ratings. A strong answer rated Needs work, or an off-topic answer rated Strong, fails the build.
 - Overlay tests: focus trap, Esc and Back confirmation, Try again and New question transitions, deck state unchanged after close.
 
