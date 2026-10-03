@@ -107,12 +107,23 @@ export function useRecorder({ onStop, onLost, onChunk }: Options) {
       recorder.ondataavailable = (e) => chunks.push(e.data);
       recorder.onstop = async () => {
         const lost = l.lost;
+        const elapsedSec = (performance.now() - startedAt) / 1000;
         if (mine === session.current) l.chunker.flush();
         teardown();
         const blob = new Blob(chunks, { type: recorder.mimeType });
-        const audio = await decodeTo16kMono(blob);
+        let audio: Float32Array;
+        let durationSec: number;
+        try {
+          audio = await decodeTo16kMono(blob);
+          durationSec = audio.length / SAMPLE_RATE;
+        } catch {
+          // Empty blob on a very fast Stop, or a codec quirk: still deliver the recording so the
+          // overlay doesn't hang in "recording" — just with no audio to analyse.
+          audio = new Float32Array(0);
+          durationSec = elapsedSec;
+        }
         if (mine !== session.current) return;
-        const rec: Recording = { audio, url: URL.createObjectURL(blob), durationSec: audio.length / SAMPLE_RATE };
+        const rec: Recording = { audio, url: URL.createObjectURL(blob), durationSec };
         setRecording(rec);
         (lost ? handlers.current.onLost : handlers.current.onStop)(rec);
       };

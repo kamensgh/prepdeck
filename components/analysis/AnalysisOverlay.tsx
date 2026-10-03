@@ -95,9 +95,15 @@ export function AnalysisOverlay({ question, deckDone, onClose, onNewQuestion }: 
       finalizeClose();
     };
     // Covers the dialog closing some other way (e.g. the browser's own handling of a repeated Esc).
+    // Consume the pushed history entry via back() (→ popstate → onPop → onClose) rather than
+    // calling onClose() directly, so the entry doesn't linger for a later Back press to trip over.
     const onDialogClose = () => {
       if (closing.current) return;
-      finalizeClose();
+      closing.current = true;
+      if (stateRef.current.step === 'analysing') engine.cancel();
+      else dropSession();
+      recorder.discard();
+      history.back();
     };
     window.addEventListener('popstate', onPop);
     d?.addEventListener('close', onDialogClose);
@@ -126,8 +132,9 @@ export function AnalysisOverlay({ question, deckDone, onClose, onNewQuestion }: 
     const s = stateRef.current.step;
     if ((s === 'count-in' || s === 'recording') && !window.confirm('Discard this recording?')) return;
     closing.current = true;
+    if (stateRef.current.step === 'analysing') engine.cancel();
+    else dropSession();
     recorder.discard();
-    dropSession();
     history.back(); // fires popstate → onClose
   }, [recorder]);
 
@@ -188,14 +195,14 @@ export function AnalysisOverlay({ question, deckDone, onClose, onNewQuestion }: 
   useEffect(() => {
     recorder.discard();
     dropSession();
-    dispatch({ type: 'try-again' });
+    dispatch({ type: 'try-again', loaded: engine.isLoaded() });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [questionId]);
 
   const tryAgain = () => {
     recorder.discard();
     dropSession();
-    dispatch({ type: 'try-again' });
+    dispatch({ type: 'try-again', loaded: engine.isLoaded() });
   };
 
   return (
@@ -272,7 +279,7 @@ export function AnalysisOverlay({ question, deckDone, onClose, onNewQuestion }: 
               <p className="font-display text-3xl font-extrabold">Listening back…</p>
               <ol className="mt-4 flex justify-center gap-3 text-sm font-bold">
                 {(['transcribing', 'pauses', 'content'] as const).map((s) => (
-                  <li key={s} className={s === state.stage ? 'text-ink' : 'text-ink-soft/50'}>
+                  <li key={s} aria-current={s === state.stage ? 'step' : undefined} className={s === state.stage ? 'text-ink' : 'text-ink-soft/50'}>
                     {stageLabel[s]}
                   </li>
                 ))}

@@ -1,5 +1,5 @@
 import type { Result } from '../analysis/types.ts';
-import { ACTIVE_PROFILE, dtypesFor, MODEL_BYTES_ESTIMATE, MODELS, modelFiles, type Dtypes, type ProfileId } from './models.ts';
+import { ACTIVE_PROFILE, dtypesFor, MODEL_BYTES_ESTIMATE, modelFiles, type Dtypes, type ProfileId } from './models.ts';
 import type { AnalysisStep, Backend, FromWorker, Tips, ToWorker, Transcribed } from './protocol.ts';
 
 /** Thrown to pending callers when the user cancels; callers should stay silent. */
@@ -12,6 +12,7 @@ let loadedDtypes: Dtypes | null = null;
 let nextId = 1;
 const listeners = new Set<(m: FromWorker) => void>();
 const rejectors = new Set<(e: Error) => void>();
+let loadingPromise: Promise<void> | null = null;
 
 function getWorker(): Worker {
   if (!worker) {
@@ -49,11 +50,12 @@ export async function hasWebGPU(): Promise<boolean> {
 
 export async function loadModels(onProgress: (loaded: number, total: number) => void, profile: ProfileId = ACTIVE_PROFILE): Promise<void> {
   if (loaded) return;
+  if (loadingPromise) return loadingPromise; // a double click (or StrictMode double effect) must not post `load` twice
   const { backend, f16 } = await pickBackend();
   backendUsed = backend;
   const dtypes = dtypesFor(profile, backend, f16);
   loadedDtypes = dtypes;
-  return new Promise<void>((resolve, reject) => {
+  const promise = new Promise<void>((resolve, reject) => {
     const files = new Map<string, { loaded: number; total: number }>();
     const finish = () => {
       stop();
@@ -84,6 +86,10 @@ export async function loadModels(onProgress: (loaded: number, total: number) => 
     rejectors.add(fail);
     getWorker().postMessage({ type: 'load', backend: backendUsed, dtypes } satisfies ToWorker);
   });
+  loadingPromise = promise.finally(() => {
+    loadingPromise = null;
+  });
+  return loadingPromise;
 }
 
 function request<T>(
@@ -139,8 +145,10 @@ let nextSession = 1;
 export function startSession(): AnalysisSession {
   const session = nextSession++;
   return {
-    push: (audio, offsetSec) =>
-      getWorker().postMessage({ type: 'chunk', session, offsetSec, audio } satisfies ToWorker, [audio.buffer as ArrayBuffer]),
+    push: (audio, offsetSec) => {
+      if (!loaded) return; // a worker without models must not be spawned by a push
+      getWorker().postMessage({ type: 'chunk', session, offsetSec, audio } satisfies ToWorker, [audio.buffer as ArrayBuffer]);
+    },
     finish: (tips, onStep) =>
       request({ type: 'finish', id: nextId++, session, tips }, (m) => (m.type === 'analysed' ? m.result : undefined), onStep),
     reset: () => worker?.postMessage({ type: 'reset' } satisfies ToWorker),
@@ -153,6 +161,7 @@ export function cancel(): void {
   worker = null;
   loaded = false;
   loadedDtypes = null;
+  loadingPromise = null;
   rejectors.forEach((r) => r(new Cancelled('cancelled')));
   rejectors.clear();
 }

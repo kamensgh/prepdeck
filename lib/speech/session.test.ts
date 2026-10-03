@@ -39,16 +39,24 @@ test('a lost mic offers analyse-what-we-have or discard', () => {
   const s = r({ step: 'recording' }, { type: 'mic-lost' });
   assert.deepEqual(s, { step: 'interrupted' });
   assert.equal(r(s, { type: 'recording-stopped' }).step, 'analysing');
-  assert.equal(r(s, { type: 'try-again' }).step, 'ready');
+  assert.equal(r(s, { type: 'try-again', loaded: true }).step, 'ready');
 });
 
 test('a mic that fails to start while recording ends in a mic failure', () => {
   assert.deepEqual(r({ step: 'recording' }, { type: 'mic-failed' }), { step: 'failed', reason: 'mic' });
 });
 
-test('try again returns to ready from results and failure', () => {
-  assert.equal(r({ step: 'results', result }, { type: 'try-again' }).step, 'ready');
-  assert.equal(r({ step: 'failed', reason: 'analysis' }, { type: 'try-again' }).step, 'ready');
+test('try again returns to ready when models are still loaded', () => {
+  assert.equal(r({ step: 'results', result }, { type: 'try-again', loaded: true }).step, 'ready');
+  assert.equal(r({ step: 'failed', reason: 'analysis' }, { type: 'try-again', loaded: true }).step, 'ready');
+});
+
+test('try again returns to setup (to reload from cache) when models were unloaded', () => {
+  assert.deepEqual(r({ step: 'results', result }, { type: 'try-again', loaded: false }), { step: 'setup', progress: null, error: null });
+  assert.deepEqual(
+    r({ step: 'failed', reason: 'analysis' }, { type: 'try-again', loaded: false }),
+    { step: 'setup', progress: null, error: null },
+  );
 });
 
 test('events that do not apply leave the state unchanged', () => {

@@ -27,7 +27,7 @@ export type SessionEvent =
   | { type: 'stage'; stage: AnalysisStep }
   | { type: 'analysed'; result: Result }
   | { type: 'analysis-failed' }
-  | { type: 'try-again' };
+  | { type: 'try-again'; loaded: boolean };
 
 export function initialSession(modelsLoaded: boolean): SessionState {
   return modelsLoaded ? { step: 'ready' } : { step: 'setup', progress: null, error: null };
@@ -53,7 +53,7 @@ export function sessionReducer(s: SessionState, e: SessionEvent): SessionState {
       return s;
     case 'interrupted':
       if (e.type === 'recording-stopped') return { step: 'analysing', stage: 'transcribing' };
-      if (e.type === 'try-again') return { step: 'ready' };
+      if (e.type === 'try-again') return initialSession(e.loaded);
       return s;
     case 'analysing':
       if (e.type === 'stage') return { step: 'analysing', stage: e.stage };
@@ -62,6 +62,6 @@ export function sessionReducer(s: SessionState, e: SessionEvent): SessionState {
       return s;
     case 'results':
     case 'failed':
-      return e.type === 'try-again' ? { step: 'ready' } : s;
+      return e.type === 'try-again' ? initialSession(e.loaded) : s;
   }
 }
