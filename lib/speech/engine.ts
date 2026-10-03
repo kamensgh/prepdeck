@@ -5,7 +5,7 @@ import {
 } from '@huggingface/transformers';
 import { NonRealTimeVAD } from '@ricky0123/vad-web';
 import type { Embed, Segment, Word } from '../analysis/types.ts';
-import { FILLER_PROMPT, MODELS, ORT_WASM, VAD_ASSETS, WHISPER_DTYPE } from './models.ts';
+import { FILLER_PROMPT, MODELS, ORT_WASM, VAD_ASSETS, type Dtypes } from './models.ts';
 import type { Backend } from './protocol.ts';
 
 type Progress = (p: { file: string; loaded: number; total: number }) => void;
@@ -16,17 +16,19 @@ let extractor: FeatureExtractionPipeline | null = null;
 let vad: NonRealTimeVAD | null = null;
 
 /** Loads all three models once; each file is cached by the browser, so a retry resumes. */
-export async function loadModels(backend: Backend, onProgress: Progress): Promise<void> {
+export async function loadModels(backend: Backend, dtypes: Dtypes, onProgress: Progress): Promise<void> {
   const progress_callback = (e: { status: string; name?: string; file?: string; loaded?: number; total?: number }) => {
     if (e.status === 'progress') onProgress({ file: `${e.name}/${e.file}`, loaded: e.loaded ?? 0, total: e.total ?? 0 });
   };
   asr ??= (await pipeline('automatic-speech-recognition', MODELS.whisper, {
     device: backend,
-    dtype: WHISPER_DTYPE[backend],
+    // transformers.js types dtype narrowly per-pipeline; our profile dtypes are chosen at runtime.
+    dtype: dtypes.whisper as 'q8',
     progress_callback,
   })) as AutomaticSpeechRecognitionPipeline;
   extractor ??= (await pipeline('feature-extraction', MODELS.embed, {
     device: backend,
+    dtype: dtypes.embed as 'q8',
     progress_callback,
   })) as FeatureExtractionPipeline;
   // NonRealTimeVADOptions (node_modules/@ricky0123/vad-web/dist/non-real-time-vad.d.ts) has no

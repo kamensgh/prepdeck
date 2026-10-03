@@ -4,19 +4,43 @@ export const MODELS = {
   embed: 'Xenova/all-MiniLM-L6-v2',
 } as const;
 
-// Whisper's encoder is sensitive to quantisation; keep it fp32 on WebGPU.
-export const WHISPER_DTYPE = {
-  webgpu: { encoder_model: 'fp32', decoder_model_merged: 'q4' },
-  wasm: 'q8',
-} as const;
+export type ProfileId = 'quality' | 'compact';
+export type Dtypes = { whisper: string | Record<string, string>; embed: string };
+type Profile = { webgpuF16: Dtypes; webgpu: Dtypes; wasm: Dtypes };
 
+// Whisper's encoder is sensitive to quantisation, so "quality" keeps it fp32 on WebGPU.
+// f16 weights need WebGPU's shader-f16 feature. Sizes are in the Stage 0 results doc.
+export const PROFILES: Record<ProfileId, Profile> = {
+  quality: {
+    webgpuF16: { whisper: { encoder_model: 'fp32', decoder_model_merged: 'q4' }, embed: 'fp32' },
+    webgpu: { whisper: { encoder_model: 'fp32', decoder_model_merged: 'q4' }, embed: 'fp32' },
+    wasm: { whisper: 'q8', embed: 'q8' },
+  },
+  compact: {
+    webgpuF16: { whisper: { encoder_model: 'fp16', decoder_model_merged: 'q4f16' }, embed: 'q8' },
+    webgpu: { whisper: { encoder_model: 'fp32', decoder_model_merged: 'q8' }, embed: 'q8' },
+    wasm: { whisper: 'q8', embed: 'q8' },
+  },
+};
+
+/** The profile the app ships with. Task 14 confirms it from the Step 6 comparison. */
+export const ACTIVE_PROFILE: ProfileId = 'compact';
+
+export function dtypesFor(profile: ProfileId, backend: 'webgpu' | 'wasm', f16: boolean): Dtypes {
+  const p = PROFILES[profile];
+  return backend === 'wasm' ? p.wasm : f16 ? p.webgpuF16 : p.webgpu;
+}
+
+// vad-web bundles onnxruntime-web 1.30.0; Transformers.js uses its own runtime build.
 export const VAD_ASSETS = 'https://cdn.jsdelivr.net/npm/@ricky0123/vad-web@0.0.31/dist/';
 export const ORT_WASM = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.30.0/dist/';
 
 /** A filler-heavy prompt nudges Whisper to transcribe disfluencies verbatim. */
 export const FILLER_PROMPT = 'Umm, let me think, like, hmm. Okay, so, uh, I mean, you know, basically it is, like, sort of this.';
-export const USE_FILLER_PROMPT = true;
+// Stage 0: Transformers.js ignores Whisper prompts (no get_prompt_ids), so this stays off.
+export const USE_FILLER_PROMPT = false;
 
 /** Total model download, measured in Stage 0. Used for the storage check and setup copy. */
-export const MODEL_BYTES_ESTIMATE = 100 * 1024 * 1024;
-export const APPROX_DOWNLOAD_MB = 100;
+// Compact profile on WebGPU, from the Stage 0 file sizes; Task 14 sets the measured value.
+export const MODEL_BYTES_ESTIMATE = 140 * 1024 * 1024;
+export const APPROX_DOWNLOAD_MB = 140;

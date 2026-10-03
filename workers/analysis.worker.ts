@@ -8,7 +8,7 @@ const post = (m: FromWorker) => self.postMessage(m);
 self.onmessage = async ({ data }: MessageEvent<ToWorker>) => {
   if (data.type === 'load') {
     try {
-      await loadModels(data.backend, (p) => post({ type: 'progress', ...p }));
+      await loadModels(data.backend, data.dtypes, (p) => post({ type: 'progress', ...p }));
       post({ type: 'loaded' });
     } catch (e) {
       post({ type: 'load-error', message: String(e) });

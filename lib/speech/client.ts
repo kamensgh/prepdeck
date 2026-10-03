@@ -1,5 +1,5 @@
 import type { Result } from '../analysis/types.ts';
-import { MODEL_BYTES_ESTIMATE, MODELS } from './models.ts';
+import { ACTIVE_PROFILE, dtypesFor, MODEL_BYTES_ESTIMATE, MODELS, type Dtypes, type ProfileId } from './models.ts';
 import type { AnalysisStep, Backend, FromWorker, Tips, ToWorker, Transcribed } from './protocol.ts';
 
 /** Thrown to pending callers when the user cancels; callers should stay silent. */
@@ -8,6 +8,7 @@ export class Cancelled extends Error {}
 let worker: Worker | null = null;
 let loaded = false;
 let backendUsed: Backend = 'wasm';
+let loadedDtypes: Dtypes | null = null;
 let nextId = 1;
 const listeners = new Set<(m: FromWorker) => void>();
 const rejectors = new Set<(e: Error) => void>();
@@ -27,24 +28,31 @@ function listen(fn: (m: FromWorker) => void): () => void {
 
 export const isLoaded = () => loaded;
 export const currentBackend = () => backendUsed;
+export const currentDtypes = () => loadedDtypes;
 
-async function pickBackend(): Promise<Backend> {
-  const gpu = (navigator as Navigator & { gpu?: { requestAdapter(): Promise<unknown> } }).gpu;
+type Gpu = { requestAdapter(): Promise<{ features: { has(name: string): boolean } } | null> };
+
+async function pickBackend(): Promise<{ backend: Backend; f16: boolean }> {
+  const gpu = (navigator as Navigator & { gpu?: Gpu }).gpu;
   try {
-    return gpu && (await gpu.requestAdapter()) ? 'webgpu' : 'wasm';
+    const adapter = gpu ? await gpu.requestAdapter() : null;
+    return adapter ? { backend: 'webgpu', f16: adapter.features.has('shader-f16') } : { backend: 'wasm', f16: false };
   } catch {
-    return 'wasm';
+    return { backend: 'wasm', f16: false }; // requestAdapter can throw on blocklisted GPUs
   }
 }
 
 /** True when the browser offers a usable WebGPU adapter. */
 export async function hasWebGPU(): Promise<boolean> {
-  return (await pickBackend()) === 'webgpu';
+  return (await pickBackend()).backend === 'webgpu';
 }
 
-export async function loadModels(onProgress: (loaded: number, total: number) => void): Promise<void> {
+export async function loadModels(onProgress: (loaded: number, total: number) => void, profile: ProfileId = ACTIVE_PROFILE): Promise<void> {
   if (loaded) return;
-  backendUsed = await pickBackend();
+  const { backend, f16 } = await pickBackend();
+  backendUsed = backend;
+  const dtypes = dtypesFor(profile, backend, f16);
+  loadedDtypes = dtypes;
   return new Promise<void>((resolve, reject) => {
     const files = new Map<string, { loaded: number; total: number }>();
     const finish = () => {
@@ -74,7 +82,7 @@ export async function loadModels(onProgress: (loaded: number, total: number) => 
       }
     });
     rejectors.add(fail);
-    getWorker().postMessage({ type: 'load', backend: backendUsed } satisfies ToWorker);
+    getWorker().postMessage({ type: 'load', backend: backendUsed, dtypes } satisfies ToWorker);
   });
 }
 
@@ -128,6 +136,7 @@ export function cancel(): void {
   worker?.terminate();
   worker = null;
   loaded = false;
+  loadedDtypes = null;
   rejectors.forEach((r) => r(new Cancelled('cancelled')));
   rejectors.clear();
 }

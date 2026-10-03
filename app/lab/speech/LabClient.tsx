@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { fillerRecall } from '@/lib/analysis/spike';
 import { decodeTo16kMono } from '@/lib/speech/audio';
 import * as engine from '@/lib/speech/client';
+import { PROFILES, type ProfileId } from '@/lib/speech/models';
 import type { Transcribed } from '@/lib/speech/protocol';
 import { useRecorder } from '@/lib/speech/useRecorder';
 
@@ -14,15 +15,21 @@ export function LabClient() {
   const [audio, setAudio] = useState<Float32Array | null>(null);
   const [label, setLabel] = useState('');
   const [runs, setRuns] = useState<Run[]>([]);
+  const [profile, setProfile] = useState<ProfileId>('compact');
   const recorder = useRecorder({ onStop: (r) => setAudio(r.audio), onLost: (r) => setAudio(r.audio) });
 
   const load = async () => {
     try {
       setStatus('Loading…');
+      engine.cancel(); // force a reload when switching profiles
       const t0 = performance.now();
-      await engine.loadModels((l, t) => setStatus(`Downloading ${(l / 1e6).toFixed(1)} / ${(t / 1e6).toFixed(1)} MB`));
+      let lastTotal = 0;
+      await engine.loadModels((l, t) => {
+        lastTotal = t;
+        setStatus(`Downloading ${(l / 1e6).toFixed(1)} / ${(t / 1e6).toFixed(1)} MB`);
+      }, profile);
       setStatus(
-        `Loaded on ${engine.currentBackend()} in ${((performance.now() - t0) / 1000).toFixed(1)} s · crossOriginIsolated=${String(crossOriginIsolated)}`,
+        `Loaded ${profile} on ${engine.currentBackend()} in ${((performance.now() - t0) / 1000).toFixed(1)} s · ${(lastTotal / 1e6).toFixed(1)} MB · ${JSON.stringify(engine.currentDtypes())} · crossOriginIsolated=${String(crossOriginIsolated)}`,
       );
     } catch (e) {
       setStatus(`Load failed: ${e instanceof Error ? e.message : String(e)}`);
@@ -49,9 +56,18 @@ export function LabClient() {
   return (
     <div className="mt-6 space-y-6">
       <p>{status}</p>
-      <button type="button" className="rounded-full border-2 border-ink px-4 py-2 font-bold" onClick={load}>
-        Load models
-      </button>
+      <div className="flex items-center gap-3">
+        <button type="button" className="rounded-full border-2 border-ink px-4 py-2 font-bold" onClick={load}>
+          Load models
+        </button>
+        <select value={profile} onChange={(e) => setProfile(e.target.value as ProfileId)} className="rounded border-2 border-ink px-2 py-1 font-bold">
+          {(Object.keys(PROFILES) as ProfileId[]).map((id) => (
+            <option key={id} value={id}>
+              {id}
+            </option>
+          ))}
+        </select>
+      </div>
 
       <div className="flex flex-wrap gap-3">
         <button type="button" className="rounded-full border-2 border-ink px-4 py-2 font-bold" onClick={() => (recorder.active ? recorder.stop() : recorder.start())}>
