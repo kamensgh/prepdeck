@@ -17,18 +17,33 @@ export function LabClient() {
   const recorder = useRecorder({ onStop: (r) => setAudio(r.audio), onLost: (r) => setAudio(r.audio) });
 
   const load = async () => {
-    const t0 = performance.now();
-    await engine.loadModels((l, t) => setStatus(`Downloading ${(l / 1e6).toFixed(1)} / ${(t / 1e6).toFixed(1)} MB`));
-    setStatus(
-      `Loaded on ${engine.currentBackend()} in ${((performance.now() - t0) / 1000).toFixed(1)} s · crossOriginIsolated=${String(crossOriginIsolated)}`,
-    );
+    try {
+      setStatus('Loading…');
+      const t0 = performance.now();
+      await engine.loadModels((l, t) => setStatus(`Downloading ${(l / 1e6).toFixed(1)} / ${(t / 1e6).toFixed(1)} MB`));
+      setStatus(
+        `Loaded on ${engine.currentBackend()} in ${((performance.now() - t0) / 1000).toFixed(1)} s · crossOriginIsolated=${String(crossOriginIsolated)}`,
+      );
+    } catch (e) {
+      setStatus(`Load failed: ${e instanceof Error ? e.message : String(e)}`);
+    }
   };
 
   const run = async (prompt: boolean) => {
     if (!audio) return;
-    const t0 = performance.now();
-    const data = await engine.transcribe(audio.slice(), prompt); // slice: the buffer is transferred
-    setRuns((r) => [...r, { prompt, data, totalMs: performance.now() - t0 }]);
+    if (!engine.isLoaded()) {
+      setStatus('Load models first');
+      return;
+    }
+    try {
+      setStatus('Transcribing…');
+      const t0 = performance.now();
+      const data = await engine.transcribe(audio.slice(), prompt); // slice: the buffer is transferred
+      setRuns((r) => [...r, { prompt, data, totalMs: performance.now() - t0 }]);
+      setStatus('Ready');
+    } catch (e) {
+      setStatus(`Transcribe failed: ${e instanceof Error ? e.message : String(e)}`);
+    }
   };
 
   return (
