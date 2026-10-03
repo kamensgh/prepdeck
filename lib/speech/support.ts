@@ -5,6 +5,7 @@ export function supportsAnalysis(): boolean {
     typeof WebAssembly === 'object' &&
     typeof Worker !== 'undefined' &&
     typeof MediaRecorder !== 'undefined' &&
+    typeof AudioWorkletNode !== 'undefined' &&
     !!navigator.mediaDevices?.getUserMedia
   );
 }

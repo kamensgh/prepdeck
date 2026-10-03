@@ -38,7 +38,7 @@ Universal → Industry → Role family → Specialisation → Stack, with level 
 
 ## Spoken answer analysis (v2)
 
-On a dealt card, **Analyse my answer** opens a full-screen overlay: record up to 3 minutes and get Content, Fluency and Pacing ratings with a breakdown. Everything runs in the browser (Whisper `base.en`, Silero VAD and MiniLM via Transformers.js, downloaded once and cached), and the answer is transcribed in ~25 s chunks while you speak so results arrive a few seconds after Stop. No audio, transcript or score leaves the device, and nothing is saved.
+On a dealt card, **Analyse my answer** opens a full-screen overlay: record up to 3 minutes and get Content, Fluency and Pacing ratings with a breakdown. Everything runs in the browser (Whisper `base.en`, Silero VAD and MiniLM via Transformers.js, downloaded once and cached), and the answer is transcribed in ~25 s chunks while you speak so results arrive a few seconds after Stop. No audio, transcript or score leaves the device, and nothing is saved; the models themselves are downloaded once from Hugging Face and jsDelivr.
 
 - Content: share of the question's "strong answer covers" points the answer covered
 - Fluency: filler words plus hesitations (voiced pauses Whisper folds into words) per minute

@@ -46,7 +46,15 @@ export function SetupStep({ state, cached, webgpu, phone, startedAt, onBegin, on
     return (
       <div className="mx-auto w-full max-w-md text-center">
         <p className="font-display text-2xl font-bold">Downloading the analysis model</p>
-        <div className="mt-5 h-4 overflow-hidden rounded-full border-2 border-ink bg-white" role="progressbar" aria-valuenow={Math.round(pct)} aria-valuemin={0} aria-valuemax={100}>
+        <div
+          className="mt-5 h-4 overflow-hidden rounded-full border-2 border-ink bg-white"
+          role="progressbar"
+          aria-label="Downloading the analysis model"
+          aria-valuenow={Math.round(pct)}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuetext={`${mb(loaded)} of ${total ? mb(total) : '…'} MB`}
+        >
           <div className="h-full bg-[var(--industry)] transition-[width]" style={{ width: `${pct}%` }} />
         </div>
         <p className="mt-2 text-sm text-ink-soft">

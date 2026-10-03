@@ -116,7 +116,7 @@ Every failure gives the user a clear next step and never affects the deck behind
 | Device | Mobile browsers | Supported but labelled "best on a laptop" until Stage 0 confirms phone performance |
 | Setup | Download interrupted | Resumes from cache with Retry; each model cached separately |
 | Setup | Storage full | "Not enough space to store the analysis model (~140 MB)" |
-| Setup | User cancels download | Back to Ready; nothing broken |
+| Setup | User cancels download | Back to the consent screen; nothing broken |
 | Mic | Permission denied | Browser-specific steps to re-enable; Start stays disabled |
 | Mic | Input level flat (a dead mic, not just a quiet speaker) for 5 s | "We can't hear you. Check your microphone" shown during recording; normal silence while thinking never triggers it |
 | Mic | Device unplugged mid-recording | Stop, then offer "Analyse what we have" or "Discard" |
@@ -144,7 +144,7 @@ v2 ships in three stages, each releasable on its own; Stage 0 must pass before S
 
 - Unit tests for `fluency`, `pacing`, `content` and `rate` with hand-written word and segment fixtures, covering every threshold boundary, the "like" context rules, the thinking-time allowance, and the not-graded case.
 - A golden set of 10 seed questions × 3 answers (strong, partial, off-topic) with expected ratings. A strong answer rated Needs work, or an off-topic answer rated Strong, fails the build.
-- Overlay tests: focus trap, Esc and Back confirmation, Try again and New question transitions, deck state unchanged after close.
+- Overlay tests: focus trap, Esc and Back confirmation, Try again and New question transitions, deck state unchanged after close (the reducer is unit-tested; overlay DOM behaviour is checked manually in the browser — no DOM test setup yet).
 
 **Calibration:** before release, tune `thresholds.ts` until ratings agree with a human reviewer on at least 80% of the golden set plus about 20 real answers.
 

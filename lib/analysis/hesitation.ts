@@ -1,4 +1,3 @@
-import { wordToken } from './text.ts';
 import { HESITATION } from './thresholds.ts';
 import type { Hesitation, Segment, Word } from './types.ts';
 
@@ -18,7 +17,12 @@ export function hesitations(words: Word[], segments: Segment[], fillerIndexes: S
   for (let i = 0; i < words.length; i++) {
     if (fillerIndexes.has(i)) continue; // already counted as a filler
     const w = words[i];
-    const expectedEnd = w.start + HESITATION.baseWordSec + HESITATION.perCharSec * wordToken(w.text).length;
+    // Digits are spoken as multi-syllable words ("2024" → "twenty twenty-four"), so each counts
+    // double toward the expected length; otherwise a number gets only the base length and reads
+    // as a false hesitation.
+    const letters = w.text.toLowerCase().replace(/[^a-z']/g, '').length;
+    const digits = w.text.replace(/\D/g, '').length;
+    const expectedEnd = w.start + HESITATION.baseWordSec + HESITATION.perCharSec * (letters + 2 * digits);
     const spanEnd = i + 1 < words.length ? words[i + 1].start : w.end;
     if (spanEnd <= expectedEnd) continue;
     const voiced = voicedBetween(expectedEnd, spanEnd, segments);

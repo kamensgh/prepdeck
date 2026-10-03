@@ -50,3 +50,12 @@ test('a stretched filler word is not counted twice', () => {
 test('no VAD segments means no hesitations', () => {
   assert.deepEqual(hesitations(words, [], new Set()), []);
 });
+
+test('a number is not flagged as a false hesitation: digits count toward expected length', () => {
+  const w: Word[] = [
+    { text: '2024', start: 0, end: 1.2 },
+    { text: 'next', start: 1.2, end: 1.5 },
+  ];
+  const seg = [{ start: 0, end: 1.5 }]; // continuous VAD across the whole span
+  assert.deepEqual(hesitations(w, seg, new Set()), []);
+});
