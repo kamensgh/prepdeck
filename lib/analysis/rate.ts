@@ -6,9 +6,18 @@ const downgrade = (r: Rating): Rating => (r === 'strong' ? 'good' : 'needs-work'
 
 export function rateFluency(m: FluencyMetrics): Dimension {
   const rating: Rating = m.perMinute < FLUENCY.strongBelow ? 'strong' : m.perMinute <= FLUENCY.goodUpTo ? 'good' : 'needs-work';
-  if (m.counts.length === 0) return { rating, lines: ['no filler words detected'] };
-  const top = m.counts.slice(0, 3).map((c) => `'${c.filler}' ${c.count} ${c.count === 1 ? 'time' : 'times'}`);
-  return { rating, lines: [`you said ${top.join(', ')}`] };
+  const lines: string[] = [];
+  if (m.counts.length > 0) {
+    const top = m.counts.slice(0, 3).map((c) => `'${c.filler}' ${c.count} ${c.count === 1 ? 'time' : 'times'}`);
+    lines.push(`you said ${top.join(', ')}`);
+  }
+  if (m.hesitations.length > 0) {
+    const n = m.hesitations.length;
+    const longest = m.hesitations.reduce((a, h) => (h.duration > a.duration ? h : a));
+    lines.push(`${n} ${n === 1 ? 'hesitation' : 'hesitations'}, longest after '${longest.before}…'`);
+  }
+  if (lines.length === 0) lines.push('no filler words detected');
+  return { rating, lines };
 }
 
 export function ratePacing(m: PacingMetrics): Dimension {

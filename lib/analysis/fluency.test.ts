@@ -51,3 +51,14 @@ test('indexes cover both words of a two-word filler, sorted by frequency', () =>
     { filler: 'you know', count: 1 },
   ]);
 });
+
+test('hesitations count toward the per-minute rate', () => {
+  const words = [
+    { text: 'so', start: 0, end: 0.3 },
+    { text: 'then', start: 3, end: 3.3 },
+  ];
+  const m = fluency(words, [{ start: 0, end: 3.5 }]);
+  assert.equal(m.total, 0); // the first sentence-starting "so" is not a filler
+  assert.equal(m.hesitations.length, 1);
+  assert.equal(Math.round(m.perMinute), 18); // 1 per 3.3 s
+});

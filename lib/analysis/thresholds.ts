@@ -4,6 +4,9 @@ export const MIN_WORDS = 15;
 /** Fillers per minute. */
 export const FLUENCY = { strongBelow: 3, goodUpTo: 6 } as const;
 
+/** A word "should" take base + perChar × letters; voiced time beyond that, up to the next word, is a hesitation. */
+export const HESITATION = { minVoicedSec: 0.8, baseWordSec: 0.25, perCharSec: 0.07 } as const;
+
 export const PACING = {
   longPauseSec: 2.5,
   thinkingSec: 5, // silence before the first word that is free

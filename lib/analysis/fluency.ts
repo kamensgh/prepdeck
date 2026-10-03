@@ -1,5 +1,6 @@
 import { wordToken } from './text.ts';
-import type { FluencyMetrics, Word } from './types.ts';
+import { hesitations } from './hesitation.ts';
+import type { FluencyMetrics, Segment, Word } from './types.ts';
 
 const SIMPLE: Record<string, string> = {
   um: 'um', umm: 'um', uh: 'uh', uhh: 'uh', er: 'er', erm: 'er', hmm: 'hmm', basically: 'basically',
@@ -16,7 +17,7 @@ const SORT_OF_KEEP_AFTER = new Set(['a', 'the', 'this', 'that', 'what', 'any', '
 
 const startsSentence = (words: Word[], i: number) => i === 0 || /[.?!]$/.test(words[i - 1].text.trim());
 
-export function fluency(words: Word[]): FluencyMetrics {
+export function fluency(words: Word[], segments: Segment[] = []): FluencyMetrics {
   const t = words.map((w) => wordToken(w.text));
   const counts = new Map<string, number>();
   const indexes: number[] = [];
@@ -43,11 +44,13 @@ export function fluency(words: Word[]): FluencyMetrics {
     } else if (w === 'so' && startsSentence(words, i) && ++sentenceSo > 1) add('so', i);
   }
 
+  const held = hesitations(words, segments, new Set(indexes));
   const span = words.length ? words.at(-1)!.end - words[0].start : 0;
   return {
     counts: [...counts].map(([filler, count]) => ({ filler, count })).sort((a, b) => b.count - a.count || a.filler.localeCompare(b.filler)),
     total,
-    perMinute: total / (Math.max(span, 1) / 60),
+    perMinute: (total + held.length) / (Math.max(span, 1) / 60),
     indexes,
+    hesitations: held,
   };
 }

@@ -4,7 +4,7 @@ import { rateContent, rateFluency, ratePacing } from './rate.ts';
 import type { ContentMetrics, PacingMetrics } from './types.ts';
 
 const fl = (perMinute: number, counts = [{ filler: 'like', count: 6 }, { filler: 'um', count: 4 }, { filler: 'basically', count: 3 }, { filler: 'uh', count: 1 }]) =>
-  rateFluency({ counts, total: counts.reduce((s, c) => s + c.count, 0), perMinute, indexes: [] });
+  rateFluency({ counts, total: counts.reduce((s, c) => s + c.count, 0), perMinute, indexes: [], hesitations: [] });
 
 test('fluency boundaries: under 3 strong, 3–6 good, over 6 needs work', () => {
   assert.equal(fl(2.9).rating, 'strong');
@@ -84,4 +84,30 @@ test('structure mode names the missing STAR parts', () => {
   });
   assert.equal(d.rating, 'good');
   assert.deepEqual(d.lines, ['covered 2 of 3 parts of a STAR answer', 'no clear result']);
+});
+
+test('fluency reports hesitations with the longest one', () => {
+  const d = rateFluency({
+    counts: [],
+    total: 0,
+    perMinute: 4,
+    indexes: [],
+    hesitations: [
+      { afterIndex: 3, duration: 1.2, before: 'company called Zego' },
+      { afterIndex: 8, duration: 2.4, before: 'the thing about' },
+    ],
+  });
+  assert.equal(d.rating, 'good');
+  assert.deepEqual(d.lines, ["2 hesitations, longest after 'the thing about…'"]);
+});
+
+test('fluency lists fillers and hesitations together', () => {
+  const d = rateFluency({
+    counts: [{ filler: 'like', count: 2 }],
+    total: 2,
+    perMinute: 2.5,
+    indexes: [4, 9],
+    hesitations: [{ afterIndex: 3, duration: 1.2, before: 'company called Zego' }],
+  });
+  assert.deepEqual(d.lines, ["you said 'like' 2 times", "1 hesitation, longest after 'company called Zego…'"]);
 });
