@@ -119,7 +119,7 @@ function request<T>(
       }
     });
     rejectors.add(fail);
-    getWorker().postMessage(msg, [msg.audio.buffer as ArrayBuffer]);
+    getWorker().postMessage(msg, 'audio' in msg ? [msg.audio.buffer as ArrayBuffer] : []);
   });
 }
 
@@ -127,8 +127,24 @@ export function transcribe(audio: Float32Array, prompt: boolean): Promise<Transc
   return request({ type: 'transcribe', id: nextId++, audio, prompt }, (m) => (m.type === 'transcribed' ? m.data : undefined));
 }
 
-export function analyse(audio: Float32Array, tips: Tips, onStep: (s: AnalysisStep) => void): Promise<Result> {
-  return request({ type: 'analyse', id: nextId++, audio, tips }, (m) => (m.type === 'analysed' ? m.result : undefined), onStep);
+/** One recording's analysis: push chunks while recording, then finish once to grade. */
+export type AnalysisSession = {
+  push(audio: Float32Array, offsetSec: number): void;
+  finish(tips: Tips, onStep: (s: AnalysisStep) => void): Promise<Result>;
+  reset(): void; // discard everything pushed so far
+};
+
+let nextSession = 1;
+
+export function startSession(): AnalysisSession {
+  const session = nextSession++;
+  return {
+    push: (audio, offsetSec) =>
+      getWorker().postMessage({ type: 'chunk', session, offsetSec, audio } satisfies ToWorker, [audio.buffer as ArrayBuffer]),
+    finish: (tips, onStep) =>
+      request({ type: 'finish', id: nextId++, session, tips }, (m) => (m.type === 'analysed' ? m.result : undefined), onStep),
+    reset: () => worker?.postMessage({ type: 'reset' } satisfies ToWorker),
+  };
 }
 
 /** Stops all work. The next load re-initialises from the browser cache. */

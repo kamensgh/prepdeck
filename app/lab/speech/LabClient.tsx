@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { fillerRecall } from '@/lib/analysis/spike';
+import { seedContent } from '@/lib/content/seed';
 import { decodeTo16kMono } from '@/lib/speech/audio';
 import * as engine from '@/lib/speech/client';
 import { PROFILES, type ProfileId } from '@/lib/speech/models';
@@ -10,13 +11,52 @@ import { useRecorder } from '@/lib/speech/useRecorder';
 
 type Run = { prompt: boolean; data: Transcribed; totalMs: number };
 
+const TIPS = seedContent.questions.find((q) => q.id === 'FE-03')!.tips;
+
 export function LabClient() {
   const [status, setStatus] = useState('Models not loaded');
   const [audio, setAudio] = useState<Float32Array | null>(null);
   const [label, setLabel] = useState('');
   const [runs, setRuns] = useState<Run[]>([]);
   const [profile, setProfile] = useState<ProfileId>('compact');
-  const recorder = useRecorder({ onStop: (r) => setAudio(r.audio), onLost: (r) => setAudio(r.audio) });
+  const [streaming, setStreaming] = useState(false);
+  const [streamResult, setStreamResult] = useState<{ ms: number; result: unknown } | null>(null);
+  const session = useRef<engine.AnalysisSession | null>(null);
+  const recorder = useRecorder({
+    onStop: (r) => {
+      setAudio(r.audio);
+      void finishStream();
+    },
+    onLost: (r) => {
+      setAudio(r.audio);
+      void finishStream();
+    },
+    onChunk: (audio, offsetSec) => session.current?.push(audio, offsetSec),
+  });
+
+  const finishStream = async () => {
+    const s = session.current;
+    session.current = null;
+    if (!s) return;
+    const t0 = performance.now();
+    setStatus('Analysing…');
+    try {
+      const result = await s.finish(TIPS, (step) => setStatus(`Analysing: ${step}`));
+      setStreamResult({ ms: performance.now() - t0, result });
+      setStatus('Ready');
+    } catch (e) {
+      setStatus(`Analysis failed: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  };
+
+  const toggleRecording = async () => {
+    if (recorder.active) return recorder.stop();
+    if (streaming) {
+      if (!engine.isLoaded()) return setStatus('Load models first');
+      session.current = engine.startSession();
+    }
+    await recorder.start();
+  };
 
   const load = async () => {
     try {
@@ -69,10 +109,14 @@ export function LabClient() {
         </select>
       </div>
 
-      <div className="flex flex-wrap gap-3">
-        <button type="button" className="rounded-full border-2 border-ink px-4 py-2 font-bold" onClick={() => (recorder.active ? recorder.stop() : recorder.start())}>
+      <div className="flex flex-wrap items-center gap-3">
+        <button type="button" className="rounded-full border-2 border-ink px-4 py-2 font-bold" onClick={toggleRecording}>
           {recorder.active ? `Stop (${recorder.elapsed.toFixed(0)} s)` : 'Record'}
         </button>
+        <label className="flex items-center gap-2">
+          <input type="checkbox" checked={streaming} onChange={(e) => setStreaming(e.target.checked)} />
+          <span className="font-bold">Streaming analysis (FE-03 rubric)</span>
+        </label>
         <input
           type="file"
           accept="audio/*"
@@ -116,6 +160,13 @@ export function LabClient() {
           </section>
         );
       })}
+
+      {streamResult && (
+        <section className="card-surface bg-white p-4">
+          <p className="font-bold">Stop → result {(streamResult.ms / 1000).toFixed(1)} s</p>
+          <pre className="mt-2 overflow-x-auto text-xs">{JSON.stringify(streamResult.result, null, 1)}</pre>
+        </section>
+      )}
     </div>
   );
 }
