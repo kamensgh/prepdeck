@@ -32,16 +32,16 @@ test('type filter narrows the deck', () => {
   assert.ok(deck.every((q) => q.type === 'situational'));
 });
 
-test('M&A deck includes industry and universal questions', () => {
+test('HR M&A deck includes industry, case study and universal questions', () => {
   const ids = buildDeck(seedContent, {
     industryId: 'm-and-a',
     roleFamilyId: 'm-and-a',
-    specialisationId: 'ma-analyst',
+    specialisationId: 'hr-ma-manager',
     stacks: [],
     level: 'mid',
     types: [],
   }).map((q) => q.id);
-  assert.ok(ids.includes('VA-02') && ids.includes('U-02'));
+  assert.ok(ids.includes('LR-02') && ids.includes('CS-01') && ids.includes('U-02'));
   assert.ok(!ids.includes('FE-01'));
 });
 

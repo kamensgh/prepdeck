@@ -8,6 +8,7 @@ const typeColours: Record<QuestionType, { bg: string; fg: string }> = {
   behavioural: { bg: 'var(--color-sun)', fg: 'var(--color-ink)' },
   situational: { bg: 'var(--color-sky)', fg: 'var(--color-ink)' },
   technical: { bg: 'var(--color-pink)', fg: 'var(--color-ink)' },
+  'case-study': { bg: 'var(--color-violet)', fg: 'white' },
   'role-specific': { bg: 'var(--color-coral)', fg: 'var(--color-ink)' },
   'culture-fit': { bg: 'var(--color-emerald)', fg: 'white' },
   curveball: { bg: 'var(--color-ink)', fg: 'var(--color-sun)' },
@@ -18,9 +19,10 @@ type Props = {
   instant: boolean;
   tipsOpen: boolean;
   onToggleTips: () => void;
+  onAnalyse?: () => void;
 };
 
-export function QuestionCard({ question, instant, tipsOpen, onToggleTips }: Props) {
+export function QuestionCard({ question, instant, tipsOpen, onToggleTips, onAnalyse }: Props) {
   const colour = typeColours[question.type];
   const level = question.level === 'all' ? 'Any level' : `${seniorityLabels[question.level]}+`;
 
@@ -44,19 +46,37 @@ export function QuestionCard({ question, instant, tipsOpen, onToggleTips }: Prop
         <span className="text-sm font-semibold text-ink-soft">{level}</span>
       </div>
 
-      <h2 className="mt-6 flex-1 overflow-y-auto font-display text-[clamp(1.4rem,4.6vw,1.9rem)] font-bold leading-tight text-balance">
+      <h2
+        className={[
+          'mt-6 flex-1 overflow-y-auto font-display font-bold leading-tight text-balance',
+          // Case studies run to several sentences; keep them readable on the card.
+          question.text.length > 160 ? 'text-[clamp(1rem,3.4vw,1.15rem)] leading-snug' : 'text-[clamp(1.4rem,4.6vw,1.9rem)]',
+        ].join(' ')}
+      >
         {question.text}
       </h2>
 
-      <button
-        type="button"
-        onClick={onToggleTips}
-        aria-expanded={tipsOpen}
-        className="mt-4 self-start rounded-full border-2 border-ink px-4 py-2 text-sm font-bold transition-colors hover:bg-ink/5"
-        style={tipsOpen ? { background: 'var(--industry)', color: 'white' } : undefined}
-      >
-        {tipsOpen ? 'Hide tips' : 'What makes a great answer?'}
-      </button>
+      <div className="mt-4 flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={onToggleTips}
+          aria-expanded={tipsOpen}
+          className="rounded-full border-2 border-ink px-4 py-2 text-sm font-bold transition-colors hover:bg-ink/5"
+          style={tipsOpen ? { background: 'var(--industry)', color: 'white' } : undefined}
+        >
+          {tipsOpen ? 'Hide tips' : 'What makes a great answer?'}
+        </button>
+        {onAnalyse && (
+          <button
+            type="button"
+            onClick={onAnalyse}
+            data-analyse-button
+            className="rounded-full border-2 border-ink bg-[var(--industry)] px-4 py-2 text-sm font-bold text-white"
+          >
+            Analyse my answer
+          </button>
+        )}
+      </div>
     </motion.article>
   );
 }

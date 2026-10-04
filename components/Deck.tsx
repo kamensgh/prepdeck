@@ -4,6 +4,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion, useReducedMotion, type TargetAndTransition } from 'motion/react';
 import type { Question } from '@/lib/content/schema';
 import { shuffle } from '@/lib/deck';
+import { supportsAnalysis } from '@/lib/speech/support';
+import { AnalysisOverlay } from './analysis/AnalysisOverlay';
 import { QuestionCard } from './QuestionCard';
 import { TipsPanel } from './TipsPanel';
 
@@ -53,6 +55,11 @@ export function Deck({ deck, industryName }: { deck: Question[]; industryName: s
   const [phase, setPhase] = useState<Phase>('idle');
   const [round, setRound] = useState(0); // bumps on every shuffle to replay the animation
   const [showTips, setShowTips] = useState(false);
+  const [analysing, setAnalysing] = useState(false);
+  const [canAnalyse, setCanAnalyse] = useState(false);
+  // Checked after mount so server and client render the same markup.
+  useEffect(() => setCanAnalyse(supportsAnalysis()), []);
+  const closeAnalysis = useCallback(() => setAnalysing(false), []);
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const effectiveStyle: ShuffleStyleId = reduceMotion ? 'instant' : style;
@@ -119,6 +126,7 @@ export function Deck({ deck, industryName }: { deck: Question[]; industryName: s
   // Space deals, T toggles tips — unless the user is typing or focused on a control.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (analysing) return;
       const target = e.target as HTMLElement;
       if (target.closest('button, input, textarea, select, a')) return;
       if (e.code === 'Space' && phase !== 'shuffling') {
@@ -130,7 +138,7 @@ export function Deck({ deck, industryName }: { deck: Question[]; industryName: s
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [phase, primary]);
+  }, [phase, primary, analysing]);
 
   const remaining = phase === 'dealt' ? order.length - pos - 1 : deck.length;
 
@@ -184,6 +192,7 @@ export function Deck({ deck, industryName }: { deck: Question[]; industryName: s
                 instant={effectiveStyle === 'instant'}
                 onToggleTips={() => setShowTips((s) => !s)}
                 tipsOpen={showTips}
+                onAnalyse={canAnalyse ? () => setAnalysing(true) : undefined}
               />
             )}
           </AnimatePresence>
@@ -214,6 +223,7 @@ export function Deck({ deck, industryName }: { deck: Question[]; industryName: s
           type="button"
           onClick={primary.action}
           disabled={deck.length === 0 || phase === 'shuffling'}
+          data-deck-primary
           className="card-surface rounded-full! bg-[var(--industry)] px-7 py-3 font-display text-lg font-extrabold text-white transition-[transform,box-shadow] active:translate-x-1 active:translate-y-1 active:shadow-none disabled:opacity-50"
         >
           {phase === 'shuffling' ? 'Shuffling…' : primary.label}
@@ -237,6 +247,10 @@ export function Deck({ deck, industryName }: { deck: Question[]; industryName: s
       <p className="sr-only" aria-live="polite">
         {current ? `${industryName} question: ${current.text}` : ''}
       </p>
+
+      {analysing && (current || phase === 'done') && (
+        <AnalysisOverlay question={current} deckDone={phase === 'done'} onClose={closeAnalysis} onNewQuestion={dealNext} />
+      )}
     </section>
   );
 }

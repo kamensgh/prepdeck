@@ -21,6 +21,7 @@ export const question = defineType({
           { title: 'Behavioural', value: 'behavioural' },
           { title: 'Situational', value: 'situational' },
           { title: 'Technical', value: 'technical' },
+          { title: 'Case study', value: 'case-study' },
           { title: 'Role-specific', value: 'role-specific' },
           { title: 'Culture fit', value: 'culture-fit' },
           { title: 'Curveball', value: 'curveball' },

@@ -1,0 +1,172 @@
+'use client';
+
+import { useRef, useState } from 'react';
+import { fillerRecall } from '@/lib/analysis/spike';
+import { seedContent } from '@/lib/content/seed';
+import { decodeTo16kMono } from '@/lib/speech/audio';
+import * as engine from '@/lib/speech/client';
+import { PROFILES, type ProfileId } from '@/lib/speech/models';
+import type { Transcribed } from '@/lib/speech/protocol';
+import { useRecorder } from '@/lib/speech/useRecorder';
+
+type Run = { prompt: boolean; data: Transcribed; totalMs: number };
+
+const TIPS = seedContent.questions.find((q) => q.id === 'FE-03')!.tips;
+
+export function LabClient() {
+  const [status, setStatus] = useState('Models not loaded');
+  const [audio, setAudio] = useState<Float32Array | null>(null);
+  const [label, setLabel] = useState('');
+  const [runs, setRuns] = useState<Run[]>([]);
+  const [profile, setProfile] = useState<ProfileId>('compact');
+  const [streaming, setStreaming] = useState(false);
+  const [streamResult, setStreamResult] = useState<{ ms: number; result: unknown } | null>(null);
+  const session = useRef<engine.AnalysisSession | null>(null);
+  const recorder = useRecorder({
+    onStop: (r) => {
+      setAudio(r.audio);
+      void finishStream();
+    },
+    onLost: (r) => {
+      setAudio(r.audio);
+      void finishStream();
+    },
+    onChunk: (audio, offsetSec) => session.current?.push(audio, offsetSec),
+  });
+
+  const finishStream = async () => {
+    const s = session.current;
+    session.current = null;
+    if (!s) return;
+    const t0 = performance.now();
+    setStatus('Analysing…');
+    try {
+      const result = await s.finish(TIPS, (step) => setStatus(`Analysing: ${step}`));
+      setStreamResult({ ms: performance.now() - t0, result });
+      setStatus('Ready');
+    } catch (e) {
+      setStatus(`Analysis failed: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  };
+
+  const toggleRecording = async () => {
+    if (recorder.active) return recorder.stop();
+    if (streaming) {
+      if (!engine.isLoaded()) return setStatus('Load models first');
+      session.current = engine.startSession();
+    }
+    await recorder.start();
+  };
+
+  const load = async () => {
+    try {
+      setStatus('Loading…');
+      engine.cancel(); // force a reload when switching profiles
+      const t0 = performance.now();
+      let lastTotal = 0;
+      await engine.loadModels((l, t) => {
+        lastTotal = t;
+        setStatus(`Downloading ${(l / 1e6).toFixed(1)} / ${(t / 1e6).toFixed(1)} MB`);
+      }, profile);
+      setStatus(
+        `Loaded ${profile} on ${engine.currentBackend()} in ${((performance.now() - t0) / 1000).toFixed(1)} s · ${(lastTotal / 1e6).toFixed(1)} MB · ${JSON.stringify(engine.currentDtypes())} · crossOriginIsolated=${String(crossOriginIsolated)}`,
+      );
+    } catch (e) {
+      setStatus(`Load failed: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  };
+
+  const run = async (prompt: boolean) => {
+    if (!audio) return;
+    if (!engine.isLoaded()) {
+      setStatus('Load models first');
+      return;
+    }
+    try {
+      setStatus('Transcribing…');
+      const t0 = performance.now();
+      const data = await engine.transcribe(audio.slice(), prompt); // slice: the buffer is transferred
+      setRuns((r) => [...r, { prompt, data, totalMs: performance.now() - t0 }]);
+      setStatus('Ready');
+    } catch (e) {
+      setStatus(`Transcribe failed: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  };
+
+  return (
+    <div className="mt-6 space-y-6">
+      <p>{status}</p>
+      <div className="flex items-center gap-3">
+        <button type="button" className="rounded-full border-2 border-ink px-4 py-2 font-bold" onClick={load}>
+          Load models
+        </button>
+        <select value={profile} onChange={(e) => setProfile(e.target.value as ProfileId)} className="rounded border-2 border-ink px-2 py-1 font-bold">
+          {(Object.keys(PROFILES) as ProfileId[]).map((id) => (
+            <option key={id} value={id}>
+              {id}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-3">
+        <button type="button" className="rounded-full border-2 border-ink px-4 py-2 font-bold" onClick={toggleRecording}>
+          {recorder.active ? `Stop (${recorder.elapsed.toFixed(0)} s)` : 'Record'}
+        </button>
+        <label className="flex items-center gap-2">
+          <input type="checkbox" checked={streaming} onChange={(e) => setStreaming(e.target.checked)} />
+          <span className="font-bold">Streaming analysis (FE-03 rubric)</span>
+        </label>
+        <input
+          type="file"
+          accept="audio/*"
+          onChange={async (e) => {
+            const f = e.target.files?.[0];
+            if (f) setAudio(await decodeTo16kMono(f));
+          }}
+        />
+        {audio && <span>{(audio.length / 16000).toFixed(1)} s of audio ready</span>}
+      </div>
+
+      <label className="block">
+        <span className="font-bold">Hand label (verbatim, every um/uh/like)</span>
+        <textarea className="mt-2 block h-24 w-full rounded border-2 border-ink p-2" value={label} onChange={(e) => setLabel(e.target.value)} />
+      </label>
+
+      <div className="flex gap-3">
+        <button type="button" className="rounded-full border-2 border-ink px-4 py-2 font-bold" onClick={() => run(false)}>
+          Transcribe (no prompt)
+        </button>
+        <button type="button" className="rounded-full border-2 border-ink px-4 py-2 font-bold" onClick={() => run(true)}>
+          Transcribe (filler prompt)
+        </button>
+      </div>
+
+      {runs.map((r, i) => {
+        const text = r.data.words.map((w) => w.text).join(' ');
+        const recall = label ? fillerRecall(label, text) : null;
+        return (
+          <section key={i} className="card-surface bg-white p-4">
+            <p className="font-bold">
+              Run {i + 1} · prompt {r.prompt ? 'on' : 'off'} · total {(r.totalMs / 1000).toFixed(1)} s · whisper {(r.data.ms.whisper / 1000).toFixed(1)} s · vad{' '}
+              {(r.data.ms.vad / 1000).toFixed(1)} s
+            </p>
+            {recall && <p>Filler recall: {(recall.recall * 100).toFixed(0)}% {JSON.stringify(recall.perFiller)}</p>}
+            <p className="mt-2">{text}</p>
+            <details className="mt-2">
+              <summary>Words and segments</summary>
+              <pre className="overflow-x-auto text-xs">{JSON.stringify(r.data, null, 1)}</pre>
+            </details>
+          </section>
+        );
+      })}
+
+      {streamResult && (
+        <section className="card-surface bg-white p-4">
+          <p className="font-bold">Stop → result {(streamResult.ms / 1000).toFixed(1)} s</p>
+          <pre className="mt-2 overflow-x-auto text-xs">{JSON.stringify(streamResult.result, null, 1)}</pre>
+        </section>
+      )}
+    </div>
+  );
+}
