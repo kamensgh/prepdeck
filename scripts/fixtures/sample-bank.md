@@ -10,4 +10,5 @@
 | ID | Question | Type | Level | Tips | Review |
 | --- | --- | --- | --- | --- | --- |
 | U-07 | Why do you want to work here? | Culture fit | All | Asking: did you do your homework? Hit: 2–3 specifics. Avoid: generic praise. | Needs edit |
-| VA-02 | Walk me through a DCF. | Technical | Entry | Asking: the most common technical. Hit: unlevered FCF, terminal value, WACC. Avoid: skipping the bridge. | Approved |
+| LR-02 | Explain TUPE. | Technical | Mid | Asking: UK transfer law. Hit: automatic transfer, inform and consult, ETO reasons. Avoid: harmonising on Day 1. | Approved |
+| CS-01 | Case study: a carve-out of 20,000 employees. Walk me through your approach. | Case study | Mid | Asking: structure. Hit: perimeter, consultation, recruitment, TSAs. Avoid: one workstream only. | Approved |

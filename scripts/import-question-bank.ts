@@ -30,17 +30,22 @@ const scopeByPrefix: Record<string, { scope: Scope; version?: string }> = {
   NX: { scope: { ...ENGINEERING, stack: 'nextjs' } },
   ND: { scope: { ...ENGINEERING, stack: 'nodejs' } },
   PY: { scope: { ...ENGINEERING, stack: 'python' } },
-  MA: { scope: MNA },
-  AC: { scope: MNA },
-  VA: { scope: MNA },
-  DP: { scope: MNA },
-  SM: { scope: MNA },
+  // People in Deals (HR M&A)
+  MP: { scope: MNA },
+  LR: { scope: MNA },
+  DD: { scope: MNA },
+  CO: { scope: MNA },
+  PM: { scope: MNA },
+  TR: { scope: MNA },
+  CC: { scope: MNA },
+  CS: { scope: MNA },
 };
 
 const typeByLabel: Record<string, string> = {
   behavioural: 'behavioural',
   situational: 'situational',
   technical: 'technical',
+  'case study': 'case-study',
   'role-specific': 'role-specific',
   'culture fit': 'culture-fit',
   curveball: 'curveball',
