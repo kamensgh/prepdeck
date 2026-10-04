@@ -4,6 +4,10 @@ Interview practice as a card game: pick an industry and role, shuffle the deck, 
 
 **Live:** https://prepdeck-psi.vercel.app
 
+[![Prepdeck launch video: shuffle, get dealt a question, answer out loud, get graded in your browser](docs/media/prepdeck-launch.jpg)](docs/media/prepdeck-launch.mp4)
+
+▶ [Watch the 21-second launch video](docs/media/prepdeck-launch.mp4)
+
 | Role | Link |
 | --- | --- |
 | Frontend Engineer (React, Next.js) | https://prepdeck-psi.vercel.app/technology/frontend |
