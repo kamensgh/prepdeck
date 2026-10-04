@@ -6,15 +6,6 @@ Interview practice as a card game: pick an industry and role, shuffle the deck, 
 
 ![Prepdeck: shuffle, get dealt a question, answer out loud, get graded in your browser](docs/media/prepdeck-launch.gif)
 
-▶ [Watch the launch video with sound](docs/media/prepdeck-launch.mp4)
-
-| Role | Link |
-| --- | --- |
-| Frontend Engineer (React, Next.js) | https://prepdeck-psi.vercel.app/technology/frontend |
-| Backend Engineer (Node.js, Python) | https://prepdeck-psi.vercel.app/technology/backend |
-| Fullstack Engineer (React, Next.js, Node.js) | https://prepdeck-psi.vercel.app/technology/fullstack |
-| HR M&A Manager (People in Deals) | https://prepdeck-psi.vercel.app/m-and-a/hr-ma-manager |
-
 Every role also gets the general behavioural questions (conflict, leadership, success, failure, pressure, feedback). Question types: Behavioural, Situational, Technical, Case study, Role-specific, Culture fit and Curveball.
 
 ## Run it
