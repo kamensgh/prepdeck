@@ -141,6 +141,31 @@ export function taxonomyDocs() {
   ];
 }
 
+/**
+ * Read-aloud passages from the seed, so they start out editable in Sanity.
+ * Links to questions not in this import are weak, because Sanity rejects strong references to missing documents.
+ */
+export function passageDocs(importedCodes: Set<string>) {
+  return seedContent.passages.map((p) => ({
+    _id: `passage-${p.id}`,
+    _type: 'passage',
+    code: p.id,
+    title: p.title,
+    kind: p.kind,
+    ...(p.questionId && {
+      question: { ...ref('question', p.questionId), ...(!importedCodes.has(p.questionId) && { _weak: true }) },
+    }),
+    text: p.text,
+    scope: {
+      ...(p.scope.industryId && { industry: ref('industry', p.scope.industryId) }),
+      ...(p.scope.roleFamilyId && { roleFamily: ref('roleFamily', p.scope.roleFamilyId) }),
+      ...(p.scope.specialisationId && { specialisation: ref('specialisation', p.scope.specialisationId) }),
+      ...(p.scope.stack && { stack: p.scope.stack }),
+    },
+    status: p.status,
+  }));
+}
+
 if (import.meta.url === `file://${process.argv[1]}`) {
   const input = process.argv[2];
   if (!input) {
@@ -148,10 +173,13 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     process.exit(1);
   }
   const { docs, problems } = parseBank(readFileSync(input, 'utf8'));
-  const all = [...taxonomyDocs(), ...docs];
+  const passages = passageDocs(new Set(docs.map((d) => String(d.code))));
+  const all = [...taxonomyDocs(), ...docs, ...passages];
   writeFileSync('question-bank.ndjson', all.map((d) => JSON.stringify(d)).join('\n') + '\n');
   const approved = docs.filter((d) => d.status === 'approved').length;
-  console.log(`Wrote ${docs.length} questions (${approved} approved) + ${all.length - docs.length} taxonomy docs to question-bank.ndjson`);
+  console.log(
+    `Wrote ${docs.length} questions (${approved} approved), ${passages.length} passages and ${all.length - docs.length - passages.length} taxonomy docs to question-bank.ndjson`,
+  );
   if (problems.length) {
     console.warn(`\n${problems.length} rows need attention:\n- ${problems.join('\n- ')}`);
     process.exitCode = 1;

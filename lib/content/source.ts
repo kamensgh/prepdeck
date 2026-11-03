@@ -19,7 +19,7 @@ const client = projectId
     })
   : null;
 
-// Only approved questions reach the app; the Review status is the publishing gate.
+// Only approved questions and passages reach the app; the Review status is the publishing gate.
 const CONTENT_QUERY = /* groq */ `{
   "industries": *[_type == "industry"] | order(order asc) {
     "id": slug.current, name, color, blurb
@@ -40,6 +40,16 @@ const CONTENT_QUERY = /* groq */ `{
       "stack": scope.stack
     },
     tips, status, version, lastReviewed
+  },
+  "passages": *[_type == "passage" && status == "approved"] | order(title asc) {
+    "id": code, title, kind, "questionId": question->code, text,
+    "scope": {
+      "industryId": scope.industry->slug.current,
+      "roleFamilyId": scope.roleFamily->slug.current,
+      "specialisationId": scope.specialisation->slug.current,
+      "stack": scope.stack
+    },
+    status
   }
 }`;
 

@@ -1,4 +1,5 @@
 import type { Content } from './schema.ts';
+import { seedPassages } from './seed-passages.ts';
 
 /**
  * Development seed. Used when Sanity isn't configured, so the app runs out of the box.
@@ -1005,4 +1006,5 @@ export const seedContent: Content = {
       status: 'approved',
     },
   ],
+  passages: seedPassages,
 };

@@ -23,7 +23,7 @@ export function matchesSelection(q: Question, s: DeckSelection): boolean {
   return true;
 }
 
-export function buildDeck(content: Content, s: DeckSelection): Question[] {
+export function buildDeck(content: Pick<Content, 'questions'>, s: DeckSelection): Question[] {
   return content.questions.filter((q) => q.status === 'approved' && matchesSelection(q, s));
 }
 
