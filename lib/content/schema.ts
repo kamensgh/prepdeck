@@ -57,11 +57,25 @@ export const QuestionSchema = z.object({
   lastReviewed: z.string().optional(),
 });
 
+export const passageKinds = ['model-answer', 'talk-about'] as const;
+
+/** A passage to read aloud for fluency: a model answer to a bank question, or a short talk on the role. */
+export const PassageSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  kind: z.enum(passageKinds),
+  questionId: z.string().optional(), // model answers point at the question they answer
+  text: z.string(), // paragraphs separated by a blank line
+  scope: QuestionSchema.shape.scope,
+  status: z.enum(reviewStatuses),
+});
+
 export const ContentSchema = z.object({
   industries: z.array(IndustrySchema),
   roleFamilies: z.array(RoleFamilySchema),
   specialisations: z.array(SpecialisationSchema),
   questions: z.array(QuestionSchema),
+  passages: z.array(PassageSchema).default([]),
 });
 
 export type Seniority = z.infer<typeof SenioritySchema>;
@@ -70,6 +84,8 @@ export type Industry = z.infer<typeof IndustrySchema>;
 export type RoleFamily = z.infer<typeof RoleFamilySchema>;
 export type Specialisation = z.infer<typeof SpecialisationSchema>;
 export type Question = z.infer<typeof QuestionSchema>;
+export type Passage = z.infer<typeof PassageSchema>;
+export type PassageKind = (typeof passageKinds)[number];
 export type Content = z.infer<typeof ContentSchema>;
 
 export const typeLabels: Record<QuestionType, string> = {
@@ -86,4 +102,9 @@ export const seniorityLabels: Record<Seniority, string> = {
   entry: 'Entry',
   mid: 'Mid',
   senior: 'Senior',
+};
+
+export const passageKindLabels: Record<PassageKind, string> = {
+  'model-answer': 'Model answer',
+  'talk-about': 'Talk about it',
 };

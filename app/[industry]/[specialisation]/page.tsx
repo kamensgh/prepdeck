@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 import { getContent } from '@/lib/content/source';
 import { BackLink } from '@/components/BackLink';
 import { PracticeTable } from '@/components/PracticeTable';
+import { RoleNav } from '@/components/RoleNav';
 
 export default async function PracticePage({
   params,
@@ -31,6 +32,7 @@ export default async function PracticePage({
       <h1 className="mt-6 font-display text-4xl font-extrabold tracking-tight sm:text-5xl">
         {specialisation.name}
       </h1>
+      <RoleNav base={`/${industry.id}/${specialisation.id}`} current="deck" />
       <PracticeTable
         industry={industry}
         roleFamilyId={family.id}

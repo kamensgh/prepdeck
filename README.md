@@ -56,7 +56,7 @@ Universal → Industry → Role family → Specialisation → Stack, with level 
 1. Create a project at sanity.io and copy its project ID.
 2. `cp .env.example .env.local` and fill in `NEXT_PUBLIC_SANITY_PROJECT_ID`, `SANITY_API_READ_TOKEN` and a random `SANITY_REVALIDATE_SECRET`. Add the same variables in the Vercel project settings for production.
 3. Studio: `cd studio && npm install && SANITY_STUDIO_PROJECT_ID=... npm run dev`.
-4. Add a webhook in Sanity (API → Webhooks): URL `https://prepdeck-psi.vercel.app/api/revalidate`, trigger on create/update/delete, filter `_type in ["question","industry","roleFamily","specialisation"]`, secret = `SANITY_REVALIDATE_SECRET`.
+4. Add a webhook in Sanity (API → Webhooks): URL `https://prepdeck-psi.vercel.app/api/revalidate`, trigger on create/update/delete, filter `_type in ["question","passage","industry","roleFamily","specialisation"]`, secret = `SANITY_REVALIDATE_SECRET`.
 
 ### Import the pilot question bank
 
@@ -68,6 +68,15 @@ cd studio && npm run import                            # loads it into the produ
 ```
 
 IDs are stable (`question-FE-01`), so re-importing updates rather than duplicates. The ID prefix sets the question's scope (see `scripts/import-question-bank.ts`).
+
+## Read aloud
+
+Each role has a **Read aloud** page (`/[industry]/[role]/read`, linked from the deck page) for building fluency. Pick a passage, or **Pick one for me**, and it opens full screen with the text centred to read out loud, again and again.
+
+- **Model answers** answer a real question from the bank, following its "strong answer covers" points; the question is shown above the text.
+- **Talk about it** passages are short pieces on the role or industry.
+- Controls: Previous, Next and Pick another (← → and R on a keyboard), text size, browser full screen, and an "I read it" tally for the visit.
+- Passages use the same scope layers and Approved gate as questions, so they're edited in Sanity (`passage` type) and update live. The seed set is in `lib/content/seed-passages.ts`; `npm run import:bank` also writes them to the NDJSON so they start out in Sanity.
 
 ## Spoken answer analysis (v2)
 

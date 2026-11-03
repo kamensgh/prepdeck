@@ -38,7 +38,7 @@ export function PracticeTable({ industry, roleFamilyId, specialisation, question
   };
 
   const deck = useMemo(
-    () => buildDeck({ industries: [], roleFamilies: [], specialisations: [], questions }, selection),
+    () => buildDeck({ questions }, selection),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [questions, stacks.join(), level, types.join()],
   );

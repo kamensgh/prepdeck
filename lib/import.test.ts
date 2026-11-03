@@ -26,3 +26,15 @@ test('parses the question bank tables with scope and status', () => {
   const cs01 = docs.find((d) => d.code === 'CS-01') as any;
   assert.equal(cs01.type, 'case-study');
 });
+
+test('passage docs link strongly to imported questions and weakly to the rest', async () => {
+  const { passageDocs } = await import('../scripts/import-question-bank.ts');
+  const docs = passageDocs(new Set(['U-01'])) as any[];
+  const u01 = docs.find((d) => d.code === 'RA-U-01');
+  const fe01 = docs.find((d) => d.code === 'RA-FE-01');
+  assert.equal(u01.question._ref, 'question-U-01');
+  assert.equal(u01.question._weak, undefined);
+  assert.equal(fe01.question._weak, true);
+  assert.equal(fe01.scope.specialisation._ref, 'specialisation-frontend');
+  assert.ok(docs.every((d) => d._type === 'passage' && d._id === `passage-${d.code}`));
+});
