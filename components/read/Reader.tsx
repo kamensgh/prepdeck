@@ -170,12 +170,12 @@ export function Reader({ passages, index, questionText, onIndex, onClose }: Prop
           </div>
         </header>
 
-        <div ref={scroller} className="overflow-y-auto px-5 sm:px-8">
+        <div ref={scroller} className="overflow-y-auto px-5 sm:px-[4vw]">
           <div className="flex min-h-full items-center justify-center py-8">
             <AnimatePresence mode="wait" initial={false}>
               <motion.article
                 key={passage.id}
-                className="w-full max-w-[42ch]"
+                className="w-full"
                 initial={{ opacity: 0, y: reduceMotion ? 0 : 14 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: reduceMotion ? 0 : -10, transition: { duration: 0.15 } }}
