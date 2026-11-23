@@ -102,6 +102,209 @@ I try to separate what must change from what’s a matter of taste. I label smal
 And I keep the tone kind. I ask questions rather than give orders, and I always call out something that’s done well. A good review should leave the code better, and the author happier to ask for the next one.`,
   },
 
+  {
+    id: 'RA-SE-03',
+    title: 'What I’m most proud of building',
+    kind: 'model-answer',
+    questionId: 'SE-03',
+    scope: SE,
+    status: 'approved',
+    text: `The thing I’m most proud of building is tiered quoting for our insurance quotes on price comparison websites.
+
+Before, we returned a single quote, so on a comparison site we showed up as one line among many. I built the change that let us return several tiers at once, for example basic, standard and premium cover, each with its own price.
+
+I built it end to end. On the backend, in Python, I changed the quote service to price several tiers for one request. On the frontend, I built how those tiers were shown and compared.
+
+The result was that we were much more visible on the comparison sites, and click-through went up by thirty-four per cent.
+
+I’m proud of it because it moved a real business number, and because I owned it from the first line of backend code to the screen the customer saw.`,
+  },
+  {
+    id: 'RA-SE-04',
+    title: 'A time I failed',
+    kind: 'model-answer',
+    questionId: 'SE-04',
+    scope: SE,
+    status: 'approved',
+    text: `When I first released tiered quoting, I didn’t load test it properly on staging.
+
+Tiering meant that instead of requesting one quote, we were now requesting three or four at the same time. In production, that extra load caused timeouts, and some requests were dropped completely.
+
+We rolled the release back straight away, so customers were back on the old, stable journey. Then I traced the requests to find where the bottlenecks were, fixed them, and optimised the code to handle the extra calls. When it went out again, it was stable.
+
+The lesson was simple. When a change multiplies the work a system has to do, I pressure test it before it reaches customers. Now, whenever a change increases traffic or load, a staging load test is part of my definition of done.`,
+  },
+  {
+    id: 'RA-SE-05',
+    title: 'A conflict with a colleague',
+    kind: 'model-answer',
+    questionId: 'SE-05',
+    scope: SE,
+    status: 'approved',
+    text: `I had a disagreement with our product manager during an A/B test. We were comparing a new quote journey with the current one, and measuring conversion to see which performed better.
+
+At the same time, I’d finished a feature for one of the steps in that journey. Product wanted it live straight away. I wanted to wait until the experiment ended, because changing the journey halfway through would affect the data we had already collected, and we might not be able to trust the result.
+
+I understood why product wanted it out. The feature was ready, and it was valuable. So instead of just saying no, I suggested we merge it behind a feature flag. The code would be in production and ready, but switched off until the experiment finished.
+
+Product agreed. The experiment ran cleanly, we got a result we could trust, and we turned the feature on when it ended. Product got their feature, and we kept the data intact.`,
+  },
+  {
+    id: 'RA-SE-06',
+    title: 'How I stay current',
+    kind: 'model-answer',
+    questionId: 'SE-06',
+    scope: SE,
+    status: 'approved',
+    text: `I stay current through a mix of things. Mostly YouTube, plus podcasts and a few developers I follow on Instagram.
+
+I focus on the tools I use every day, so I follow what’s happening in React, Next.js and TypeScript, especially new features, performance improvements and the best practices that are starting to emerge.
+
+When something looks useful, I try it on a small project first, so I understand the trade-offs before I suggest it at work.
+
+And I learn a lot from my colleagues. Talking through how someone else solved a problem, or reading their code in a review, often teaches me more than any video.`,
+  },
+  {
+    id: 'RA-SE-07',
+    title: 'How I handle stress and pressure',
+    kind: 'model-answer',
+    questionId: 'SE-07',
+    scope: SE,
+    status: 'approved',
+    text: `I think pressure is part of working in software, especially with deadlines, changing requirements and technical problems nobody expected.
+
+The way I handle it is by staying organised and focusing on what I can control.
+
+If I can see that something might affect a deadline, I raise it with the team early. I’d much rather talk through options while there’s still time than wait until it becomes a bigger problem.
+
+I also try not to let pressure lower the quality of my work. If we’re working towards a tight release, I focus on delivering the most important functionality first, without cutting corners that would cause bigger problems later.
+
+And afterwards, I look at what caused the pressure. Often it means something went wrong earlier, like an estimate that was too optimistic, or scope that grew. So I try to fix that in how we plan next time.`,
+  },
+
+  // More engineering model answers
+  {
+    id: 'RA-U-07',
+    title: 'Why I want to work here',
+    kind: 'model-answer',
+    questionId: 'U-07',
+    scope: {},
+    status: 'approved',
+    text: `There are three reasons I want to work here.
+
+The first is the product. It’s used by a lot of people every day, and the kind of work I enjoy most is making a product like that faster, simpler and more reliable for the people who depend on it.
+
+The second is how you work. From what I’ve read and heard in this process, your engineers own features end to end, from the backend to what the customer sees, and you make decisions based on data. That’s how I’ve worked best, for example when I built tiered quoting across our Python backend and the frontend.
+
+The third is growth. I want to keep getting better at system design and at leading work across teams, and this role would stretch me in both.
+
+So for me, it’s the right product, the right way of working, and the right next step.`,
+  },
+  {
+    id: 'RA-SE-08',
+    title: 'Delivering bad news to a stakeholder',
+    kind: 'model-answer',
+    questionId: 'SE-08',
+    scope: SE,
+    status: 'approved',
+    text: `First, I try not to think of information as good or bad. It’s data and facts, and my job is to share it early, clearly, and with a plan.
+
+When I was building tiered quoting, we found late in testing that one of the comparison sites needed changes on their side before they could show several tiers from us. That meant our launch date would slip by about two weeks, and product had already told the business the date.
+
+I didn’t wait to see if it would sort itself out. I spoke to our product manager the same day. I explained what we had found, what it meant for the launch, and what I proposed: go live on the sites that were ready, and add the last one as soon as they were done.
+
+She wasn’t happy about the delay, but she had time to reset expectations, and she agreed to the phased launch. We went live on time on most sites, and the last one followed shortly after.
+
+What I’ve learned is that people can deal with a problem. What they can’t deal with is a surprise.`,
+  },
+  {
+    id: 'RA-SE-09',
+    title: 'Working with a cross-functional team',
+    kind: 'model-answer',
+    questionId: 'SE-09',
+    scope: SE,
+    status: 'approved',
+    text: `Tiered quoting was the most cross-functional project I’ve worked on. It involved product, design, our pricing team, and the comparison sites themselves.
+
+Each group cared about something different. Pricing cared about getting each tier’s price right. Product cared about conversion. Design cared about the customer understanding the difference between tiers. And the comparison sites cared about their own format and rules.
+
+My role was to connect all of that to what we could build. I set up a short weekly check-in, and I kept a single shared page with the decisions we’d made and the questions still open, written in plain language rather than engineering terms.
+
+There was one real clash. Design wanted to show a lot of detail for each tier, but some comparison sites limit what you can display. Instead of picking a side, I got both teams looking at the actual limits together, and we agreed a short version for comparison sites and the full detail on our own site.
+
+We launched with everyone behind the same plan, and click-through went up by thirty-four per cent.`,
+  },
+  {
+    id: 'RA-SE-10',
+    title: 'Short-term needs and long-term goals',
+    kind: 'model-answer',
+    questionId: 'SE-10',
+    scope: SE,
+    status: 'approved',
+    text: `We once needed to launch a new step in our quote journey in time for a marketing campaign. The quickest way was to copy an existing form and adapt it. The better long-term way was to build a shared form component the whole journey could use, but that would have taken longer than we had.
+
+I didn’t think it was right to miss the campaign for the sake of cleaner code, but I also didn’t want to add more copied code that would slow us down later.
+
+So I proposed a middle path. We shipped the quick version on time, and I wrote a ticket for the shared component with a clear reason why it mattered. I agreed with our product manager that we would book it into the next sprint, not leave it for some day.
+
+We hit the campaign date, and the next sprint I built the shared component and moved three forms onto it. After that, changes to forms took far less time, because we only had to make them once.
+
+For me, taking a shortcut is fine, as long as you agree when you’ll pay it back, and then you actually do.`,
+  },
+  {
+    id: 'RA-SE-11',
+    title: 'Where I see myself in five years',
+    kind: 'model-answer',
+    questionId: 'SE-11',
+    scope: SE,
+    status: 'approved',
+    text: `In five years, I see myself as a senior engineer, and ideally leading technical work across a team.
+
+I enjoy working end to end, from the backend to what the customer sees, so I want to get much deeper at system design. I want to be the person who can look at a product and see how it should be built so it’s reliable and easy to change.
+
+I’d also like to be helping other engineers grow, through reviews, pairing and mentoring, the way senior engineers helped me early in my career.
+
+And I want my work to be tied to results the business cares about, like the tiered quoting project that lifted click-through.
+
+This role fits that well. It would give me ownership of real features, and the chance to grow into leading larger pieces of work.`,
+  },
+  {
+    id: 'RA-SE-12',
+    title: 'What makes me a good team player',
+    kind: 'model-answer',
+    questionId: 'SE-12',
+    scope: SE,
+    status: 'approved',
+    text: `I think three things make me a good team player.
+
+First, I share what I know. If I solve a tricky problem, I write it up or walk the team through it, so the next person doesn’t have to solve it again.
+
+Second, I care about the team’s work, not just my own tickets. If someone is blocked, I’d rather pause and help them than finish my task while the team falls behind. I treat code reviews the same way: I review promptly, and I keep my comments kind and useful.
+
+Third, I’m honest. If I make a mistake, I say so early, like when tiered quoting caused timeouts and I led the rollback and the fix. And if I disagree, I say that too, with a reason and an alternative, like the time I suggested a feature flag so we wouldn’t spoil an experiment.
+
+For me, a good team player makes the people around them more effective, and that’s what I try to do.`,
+  },
+  {
+    id: 'RA-SE-13',
+    title: 'Managing a project from start to finish',
+    kind: 'model-answer',
+    questionId: 'SE-13',
+    scope: SE,
+    status: 'approved',
+    text: `I led the move of our quote journey from an older single-page app to Next.js, from the first proposal to the last page going live.
+
+The goal was faster pages and quicker releases. The old app was slow to load on mobile, and small changes were risky.
+
+I started by scoping it. Rather than a big rewrite, I proposed moving one step of the journey at a time, each behind a feature flag, so we could release and roll back safely. I broke it into milestones, agreed the order with product, and shared a simple weekly update.
+
+Halfway through, we found that one step depended on old code that was hard to separate. I flagged it straight away, and we agreed to move that step last, so the rest of the plan wasn’t held up.
+
+We finished with every step on Next.js and no major incidents along the way. Pages loaded noticeably faster, and the team could ship small changes with much more confidence.
+
+If I did it again, I’d look for hidden dependencies like that one at the very start.`,
+  },
+
   // Frontend
   {
     id: 'RA-FE-01',
