@@ -21,9 +21,26 @@ export const seedPassages: Passage[] = [
 
 Before that, I worked at a payments company, which is where I learned to care about reliability. When money is involved, small mistakes are expensive, so I got into the habit of testing carefully and measuring everything.
 
-What I enjoy most is the point where design, data and engineering meet. I like taking a messy problem, finding what really matters to the user, and shipping something simple.
+I’m also a strong believer in data-driven development. I like decisions to be based on how real users behave, on data and on experiments, rather than on assumptions. For example, when I built tiered quoting for price comparison websites, we measured it properly, and click-through went up by thirty-four per cent.
 
-That’s why this role stands out to me. You’re rebuilding a product that a lot of people rely on, and you want someone who can lead the frontend and work closely with design. That’s exactly the work I want to be doing next.`,
+That’s why this role stands out to me. You’re building a product that a lot of people rely on, and you want someone who can own features end to end and use data to make them better. That’s exactly the work I want to be doing next.`,
+  },
+  {
+    id: 'RA-U-13',
+    title: 'My first 30, 60 and 90 days',
+    kind: 'model-answer',
+    questionId: 'U-13',
+    scope: {},
+    status: 'approved',
+    text: `I think of a successful start in three phases: learning, ownership and improving.
+
+In the first thirty days, the focus is learning. I’d get set up with all the tools, learn the acronyms and how the team works, and start building my network. That means one-to-ones with my teammates and with the people I’ll work with every day, so I understand what they need and how I can help.
+
+From thirty to sixty days, the focus moves to ownership. I’d look at the problems the organisation is trying to solve, both for customers and internally, and find one piece I can own and fix. I’d like to do that alongside someone more experienced, who can guide me on how to approach it and deliver it in a way that fits the company’s culture.
+
+From sixty to ninety days, the focus is improving. I’d look back at the ways of working I’ve picked up so far, ask for feedback, and refine them, so I’m delivering better results and growing into a top performer on the team.
+
+By day ninety, I want to be someone the team relies on, with something real delivered.`,
   },
   {
     id: 'RA-U-02',
