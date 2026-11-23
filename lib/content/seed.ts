@@ -214,6 +214,19 @@ export const seedContent: Content = {
       },
       status: 'approved',
     },
+    {
+      id: 'U-13',
+      text: 'What would you do in your first 30, 60 and 90 days?',
+      type: 'culture-fit',
+      level: 'all',
+      scope: {},
+      tips: {
+        asking: 'Whether you have a realistic plan to learn fast, add value and settle in.',
+        hit: 'A simple structure for each phase (for example learn, own, improve), building relationships early, a first piece of work you can own, asking for feedback, and what success looks like by day 90.',
+        avoid: 'Promising to change everything in month one, or having no plan beyond "getting to know the team".',
+      },
+      status: 'approved',
+    },
     // Frontend fundamentals
     {
       id: 'FE-01',
