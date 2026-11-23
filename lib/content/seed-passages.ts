@@ -322,6 +322,103 @@ We finished with every step on Next.js and no major incidents along the way. Pag
 If I did it again, I’d look for hidden dependencies like that one at the very start.`,
   },
 
+  // System design, every engineering role
+  {
+    id: 'RA-SE-14',
+    title: 'Designing a quote system for comparison sites',
+    kind: 'model-answer',
+    questionId: 'SE-14',
+    scope: SE,
+    status: 'approved',
+    text: `I’d start with the requirements. A comparison site sends us a customer’s details, and we need to return quotes from several providers within two seconds. If we’re late, the site simply shows everyone else. So speed and reliability matter more than anything.
+
+The core of the design is a quote service that fans out. It validates the request, then calls every provider in parallel, not one after another. Each call gets its own timeout, say one and a half seconds, so one slow provider can’t hold up the rest.
+
+When the timeouts are up, we return whatever we have. A partial answer on time is worth more than a complete answer that arrives too late.
+
+To keep it fast, I’d cache anything that doesn’t change per request, like reference data and provider configuration. I’d put a circuit breaker on each provider, so if one starts failing, we stop calling it for a while instead of waiting on it every time. And every request gets an ID, so retries never create duplicate quotes.
+
+Before launch, I’d load test it at several times normal traffic. I learned that the hard way when tiered quoting multiplied our provider calls.
+
+Finally, I’d monitor response times and error rates per provider, with alerts, so we see a problem before the comparison site does.`,
+  },
+  {
+    id: 'RA-SE-15',
+    title: 'Designing a rate limiter',
+    kind: 'model-answer',
+    questionId: 'SE-15',
+    scope: SE,
+    status: 'approved',
+    text: `First, I’d ask what we’re protecting and who we’re limiting. For a public API, that’s usually per API key, with a looser limit per IP address for requests that aren’t signed in.
+
+For the algorithm, I’d choose a token bucket. Each key has a bucket that refills at a steady rate, and each request takes a token. It allows short bursts but keeps the average under control. A sliding window is a good alternative if we need stricter limits.
+
+The important part is that the API runs on many servers, so the counts can’t live in each server’s memory. I’d keep them in Redis, and update them atomically, for example with a small Lua script, so two servers can’t both let the same request through.
+
+When a client goes over the limit, we return a 429 status with a Retry-After header. On every response, we include headers showing the limit and how many requests are left, so well-behaved clients can slow down on their own.
+
+I’d run the limiter at the API gateway, so bad traffic is stopped before it reaches our services.
+
+And I’d decide what happens if Redis goes down. For most APIs, I’d fail open, letting traffic through and alerting us, because blocking every customer is worse than a short period without limits.`,
+  },
+  {
+    id: 'RA-SE-16',
+    title: 'Designing a notification system',
+    kind: 'model-answer',
+    questionId: 'SE-16',
+    scope: SE,
+    status: 'approved',
+    text: `I’d start by agreeing what we’re sending and how quickly. Password resets need to arrive in seconds. Marketing emails can wait. That difference shapes the whole design.
+
+Other services don’t send notifications themselves. They send an event to a notification API, like “quote ready” for this customer. The API checks the customer’s preferences and opt-outs, picks the right template, and puts a message on a queue for each channel: email, SMS or push.
+
+Workers read from each queue and call the provider for that channel. Using queues means a slow email provider never slows down the service that sent the event, and we can scale each channel on its own. I’d give urgent messages their own queue, so they never wait behind a big marketing send.
+
+Providers fail, so workers retry with increasing delays. After a few attempts, the message goes to a dead-letter queue for us to look at. Every message has an ID, so a retry never sends the same text twice.
+
+I’d also add rate limits per user, so a bug can’t send someone fifty messages in a minute.
+
+Finally, I’d record what happened to every message: sent, delivered, opened or failed. That helps support answer “I never got my email”, and tells us if a provider is having problems.`,
+  },
+  {
+    id: 'RA-SE-17',
+    title: 'Designing a real-time chat app',
+    kind: 'model-answer',
+    questionId: 'SE-17',
+    scope: SE,
+    status: 'approved',
+    text: `I’d begin with scope. Let’s say one-to-one and group chats, message history, and read receipts, for a few million users.
+
+For real-time delivery, each client keeps a WebSocket connection open to a gateway server. Polling would be slow and wasteful. Because users connect to different servers, I’d put a pub/sub layer, such as Redis, between the gateways. When a message arrives, it’s saved, then published to the conversation, and every gateway with a member of that conversation pushes it down.
+
+For storage, I’d partition messages by conversation, so loading a chat’s history is one fast read. Each message gets an ID that increases over time within its conversation, so everyone sees messages in the same order.
+
+Then there are the hard cases. If someone is offline, we send a push notification instead. When their app reconnects, it tells the server the last message it saw, and the server sends everything after that. That catch-up step is what stops messages going missing when a phone loses signal.
+
+Read receipts are just small events that travel the same way, and I’d batch them so they don’t flood the system.
+
+To scale, I’d add gateway servers behind a load balancer, and keep them as simple as possible, with the real logic in services behind them.`,
+  },
+  {
+    id: 'RA-SE-18',
+    title: 'Designing an A/B testing and feature flag system',
+    kind: 'model-answer',
+    questionId: 'SE-18',
+    scope: SE,
+    status: 'approved',
+    text: `I’d split this into three parts: configuration, assignment and measurement.
+
+Configuration is where people create flags and experiments. A flag might be on for five per cent of users. An experiment might split users fifty-fifty between the current quote journey and a new one. This lives in a small service with a database and an audit log of every change.
+
+Assignment has to be fast and stable. Applications keep a cached copy of the configuration, so checking a flag never needs a network call. To decide which group a user is in, we hash their user ID with the experiment’s name. That way, the same user always sees the same version, on every visit and every server, without storing anything.
+
+Measurement is what makes it an experiment. Every time a user sees a version, we log an exposure. Then we log the outcomes we care about, like completed quotes. An analysis job compares the groups and tells us when we have enough data to trust the result.
+
+There are a few rules I’d build in. Don’t change an experiment while it’s running, because it spoils the data. Keep experiments that touch the same screen from overlapping. And always have a kill switch.
+
+I’ve seen why that matters. I once held back a finished feature behind a flag so it wouldn’t spoil a running experiment, and it was the flag that made that possible.`,
+  },
+
   // Frontend
   {
     id: 'RA-FE-01',
@@ -384,6 +481,184 @@ I switch to a Client Component when I need interactivity or browser features: st
 The main skill is where you draw that line. I push it as far down the tree as possible. For example, a product page stays on the server, and only the add-to-basket button becomes a client component. The server fetches the data and passes it down as props.
 
 That way, most of the page is fast and static, and the interactive parts are small and focused.`,
+  },
+
+  // Latest React features
+  {
+    id: 'RA-RE-10',
+    title: 'The React Compiler',
+    kind: 'model-answer',
+    questionId: 'RE-10',
+    scope: { ...SE, stack: 'react' },
+    status: 'approved',
+    text: `The React Compiler is a build-time tool that memoises your components for you.
+
+Before, if a component re-rendered too often, we reached for useMemo, useCallback and React.memo by hand. That was easy to get wrong. Miss one dependency and you get a bug, add too many and the code is hard to read.
+
+The compiler looks at your code when you build, and adds that memoisation automatically, at a finer level than most of us would by hand. So in most components, I no longer write useMemo or useCallback at all. The code is simpler, and re-renders are cheaper.
+
+It does rely on the Rules of React. Components need to be pure, and you can’t mutate props or state. The ESLint plugin points out code the compiler can’t optimise, which is useful on its own.
+
+You can adopt it gradually, and if one component causes trouble, the "use no memo" directive opts it out. In Next.js, it’s one setting, reactCompiler, in the config.
+
+It isn’t magic, though. It won’t fix a slow algorithm or a huge list. I still measure with the profiler first.`,
+  },
+  {
+    id: 'RA-RE-11',
+    title: 'Actions and useActionState',
+    kind: 'model-answer',
+    questionId: 'RE-11',
+    scope: { ...SE, stack: 'react' },
+    status: 'approved',
+    text: `In React 19, an Action is an async function that runs inside a transition, usually to submit or change data.
+
+The simplest way to use one is to pass it to a form’s action prop. React then handles the parts we used to write by hand: it tracks the pending state, and it resets the form when the action succeeds.
+
+useActionState builds on that. You give it an action and an initial state, and it gives you back three things: the current state, a wrapped action to pass to the form, and an isPending flag. The action receives the previous state and the form data, and whatever it returns becomes the new state. That’s a clean place to return validation errors or a success message.
+
+For a submit button deep inside a form, useFormStatus reads whether its parent form is pending, without passing props down.
+
+The real benefit shows with Server Functions in Next.js. The form can work before JavaScript has even loaded, and once it has, React takes over smoothly. In practice, a lot of my old onSubmit handlers with preventDefault and three bits of useState just disappear.`,
+  },
+  {
+    id: 'RA-RE-12',
+    title: 'useOptimistic',
+    kind: 'model-answer',
+    questionId: 'RE-12',
+    scope: { ...SE, stack: 'react' },
+    status: 'approved',
+    text: `useOptimistic lets you show the result of an action straight away, before the server has confirmed it.
+
+Take a like button. Without it, the user taps, waits for the request, and only then sees the count go up. With useOptimistic, the count goes up immediately, and the real request happens in the background.
+
+You give it the current state, and it returns an optimistic version of that state plus a function to update it. You call that function inside an action or a transition. While the action is running, the UI shows the optimistic value. When it finishes, React switches back to the real state, which now includes the change. If the action fails, the optimistic value simply disappears, so the UI goes back to the truth.
+
+I use it for quick, reliable actions, like likes, sending a message, or toggling a setting.
+
+I wouldn’t use it for things that often fail, or that take a long time, like a payment. And when it does fail, I still tell the user, because quietly undoing their change is confusing.`,
+  },
+  {
+    id: 'RA-RE-13',
+    title: 'The Activity component',
+    kind: 'model-answer',
+    questionId: 'RE-13',
+    scope: { ...SE, stack: 'react' },
+    status: 'approved',
+    text: `Activity lets you hide part of the UI without throwing away its state.
+
+Normally, to hide something, we render it conditionally. When it’s hidden, it unmounts, so its state is lost. If a user types into a form on one tab, switches tabs and comes back, the form is empty.
+
+With Activity, you wrap that part of the UI and set its mode to visible or hidden. When it’s hidden, React doesn’t show it, and it cleans up its effects, so things like subscriptions stop. But it keeps the component’s state. When you switch it back to visible, the state is still there, and the effects start again.
+
+React also keeps rendering hidden content in the background, at a low priority, so it never slows down what the user is looking at.
+
+That opens up two useful patterns. One is tabs or panels that remember where you were. The other is pre-rendering the screen a user is likely to open next, so it appears instantly when they get there.
+
+It’s different from just hiding something with CSS, because with CSS the effects would keep running.`,
+  },
+  {
+    id: 'RA-RE-14',
+    title: 'useEffectEvent',
+    kind: 'model-answer',
+    questionId: 'RE-14',
+    scope: { ...SE, stack: 'react' },
+    status: 'approved',
+    text: `useEffectEvent solves a long-standing problem with effects: needing the latest value of something without re-running the effect when it changes.
+
+Here’s the classic example. A chat room component connects to a room in an effect, and when the connection opens, it shows a notification in the current theme. The theme has to be in the dependency list, so every time the user switches between light and dark mode, the effect disconnects and reconnects. That’s wrong. The connection should only depend on the room.
+
+With useEffectEvent, I move the notification logic into an effect event. It always sees the latest theme, but it isn’t a dependency. So the effect only depends on the room ID, and changing the theme no longer reconnects.
+
+The way I think about it is that it separates the parts of an effect that should react to changes from the parts that just need to read the latest values.
+
+There are two rules. Only call an effect event from inside an effect, never during rendering. And don’t use it just to quiet the lint warning. If a value really should restart the effect, it belongs in the dependencies.`,
+  },
+
+  // Latest Next.js features
+  {
+    id: 'RA-NX-10',
+    title: 'Cache Components and use cache',
+    kind: 'model-answer',
+    questionId: 'NX-10',
+    scope: { ...SE, stack: 'nextjs' },
+    status: 'approved',
+    text: `Cache Components is the newer caching model in Next.js, and the big change is that it flips the default.
+
+You turn it on with the cacheComponents option. From then on, data fetching is dynamic by default, and you choose what to cache. Before, a lot was cached implicitly, and people were often surprised by stale data.
+
+You opt in with the "use cache" directive. You can put it at the top of a page, a component or a function, and Next.js caches its result. cacheLife sets how long the result stays fresh, and cacheTag gives it a name, so you can invalidate it later when the data changes.
+
+The payoff is that one route can mix static and dynamic content. Next.js prerenders a static shell, with the layout and all the cached parts, and serves it immediately. Anything dynamic, like a user’s basket, sits behind a Suspense boundary and streams in when it’s ready.
+
+One thing to watch: you can’t read cookies or headers inside a cached function, because the result is shared. So I read them outside, and pass the values in as arguments.`,
+  },
+  {
+    id: 'RA-NX-11',
+    title: 'proxy.ts and middleware',
+    kind: 'model-answer',
+    questionId: 'NX-11',
+    scope: { ...SE, stack: 'nextjs' },
+    status: 'approved',
+    text: `In Next.js 16, middleware was renamed to proxy. The file is now proxy.ts, and the function you export is called proxy.
+
+What it does is the same. It runs on the server before a route is rendered, and it can redirect, rewrite to a different path, set headers or cookies, or respond directly. A matcher in its config controls which paths it runs on.
+
+The rename is about clarity. The word middleware made people think it worked like Express middleware, deep inside the app, so they put far too much in it. Proxy makes it clear that it sits in front of the app, at the network boundary, and can even run separately from it.
+
+It also now defaults to the Node.js runtime, so you have full Node APIs.
+
+I keep proxy light. It’s good for redirects, locale handling, and quick checks, like sending a user to the sign-in page if they have no session cookie. But real authorisation, checking what a user is allowed to do, still happens where the data is read. And because it may run separately from the app, I don’t rely on shared modules or global state in it.`,
+  },
+  {
+    id: 'RA-NX-12',
+    title: 'updateTag, revalidateTag and refresh',
+    kind: 'model-answer',
+    questionId: 'NX-12',
+    scope: { ...SE, stack: 'nextjs' },
+    status: 'approved',
+    text: `All three are about showing fresh data after something changes, but they behave differently.
+
+updateTag is for when a user changes something and needs to see it straight away. Say they edit their profile. In the Server Action, I call updateTag with the profile’s cache tag. It expires the data immediately, so the next request waits for fresh data instead of showing the old version. It only works in Server Actions.
+
+revalidateTag is for when a short delay is fine, like a blog post updated in a CMS. It marks the data as stale. The next visitor still gets the cached version while fresh data loads in the background, which keeps things fast. The recommended second argument is the "max" profile. It also works in Route Handlers, so it’s what I’d call from a CMS webhook. In my own side project, a webhook calls it whenever a question is edited in the CMS.
+
+refresh doesn’t touch the cache at all. Called in a Server Action, it refreshes the client router, so the current page re-renders with up-to-date server data.
+
+So, roughly: the user’s own change, updateTag. Content updated elsewhere, revalidateTag. Just re-render the page, refresh.`,
+  },
+  {
+    id: 'RA-NX-13',
+    title: 'Turbopack in Next.js 16',
+    kind: 'model-answer',
+    questionId: 'NX-13',
+    scope: { ...SE, stack: 'nextjs' },
+    status: 'approved',
+    text: `In Next.js 16, Turbopack became the default bundler, for both next dev and next build. Before, it was something you opted into.
+
+Turbopack is written in Rust, and it’s designed for speed. In practice, the dev server starts much faster, and Fast Refresh, where the page updates as you save, feels close to instant, even on big projects.
+
+For most apps, the switch needs no work at all. You upgrade and it’s simply faster.
+
+The thing to check is custom webpack configuration. If a project has its own webpack loaders or plugins, those don’t carry over automatically. You can either move them to Turbopack’s own configuration, or keep using webpack for now with the --webpack flag. Webpack hasn’t been removed.
+
+So when I upgrade a project, I look for a webpack section in the Next config first, check that each plugin has a Turbopack equivalent, and run a full build to compare the output before switching over.`,
+  },
+  {
+    id: 'RA-NX-14',
+    title: 'Handling errors with catchError',
+    kind: 'model-answer',
+    questionId: 'NX-14',
+    scope: { ...SE, stack: 'nextjs' },
+    status: 'approved',
+    text: `In Next.js, the classic way to handle errors is an error.js file, which acts as an error boundary for a whole route segment. If anything in that segment throws, the whole segment is replaced by the error screen.
+
+Sometimes that’s too much. If a small widget fails, like a recommendations panel, I don’t want to lose the whole page.
+
+That’s what catchError is for. You call it from a Client Component, and it creates an error boundary you can put around any part of the tree. You give it a fallback component, which receives the error and a retry function.
+
+It does a few things a hand-written React error boundary wouldn’t. retry re-renders inside a transition, so state outside the boundary is kept. It knows about redirect and notFound, which work by throwing special errors, so it lets them through instead of catching them by mistake. And the error clears automatically when the user navigates to another page.
+
+So my approach is to use error.js as the safety net for each section, and catchError around anything that can fail on its own without breaking the rest of the page.`,
   },
 
   // Backend
